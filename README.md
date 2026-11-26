@@ -4,18 +4,17 @@ Themes for Claude Code, packaged as mods.
 
 ## New Year sky (`new-year-sky`)
 
-A backdrop for the Claude desktop and phone apps: a New Year sky over a New York skyline, following the time of day in India (IST).
+A backdrop for the Claude desktop and phone apps: Mumbai seen from a high office window at New Year, following the time of day in India (IST). The scene is an original drawing based on the owner's own photograph.
 
-- **Clock:** the time in IST with AM or PM in the top-right corner, with tokens used, tokens left and stars remaining beneath it.
-- **New Year:** "Happy New Year 2027" in the top-left corner, a ball-drop tower with a glowing 2027 sign, fireworks and falling confetti.
-- **Skyline:** Manhattan-style towers along the bottom, windows lit at night.
-- **Day and night:** night blue after dark, warm dawn and dusk, blue sky with clouds by day.
-- **Sun and moon:** the sun is up from 6 AM to 6 PM IST and the moon from 6 PM to 6 AM. Each climbs the left side, crosses the middle around noon or midnight and sets down the right side, so the chat column doesn't hide it. It carries the context figures, and warms to amber past 65% used and to ember past 85%.
+- **The view:** a hazy sky over cream residential towers (one with a crane), trees, blue shed roofs, a construction plot and an elevated metro line with traffic beneath, with a glass tower down the right edge and the window frame and soft reflections on the left.
+- **Clock:** the time in IST with AM or PM on an LED panel at the top of the glass tower, with tokens used and left beneath it.
+- **New Year:** a "Happy New Year 2027" panel on the tower, and fireworks over the city.
+- **Day and night:** blue haze by day, warm dawn and dusk, and at night the towers' windows light up.
+- **Sun and moon:** the sun is up from 6 AM to 6 PM IST and the moon from 6 PM to 6 AM. Each rises out of the city in the left margin, peaks at noon or midnight and sinks back. It carries the context figures and the number of stars left, and warms to amber past 65% used and to ember past 85%.
 - **Stars:** 160 with an empty context window, going out one by one as it fills.
+- **Message cards:** Claude's replies sit on midnight-blue invitation cards with a gold hairline frame and corner sparkles; your messages on golden tickets with cut corners, tilted a touch; headings in gold italic serif. App versions that don't support styled messages get a frosted column instead.
 
-- **Message cards:** Claude's replies sit on midnight-blue invitation cards with a gold hairline frame and corner sparkles; your messages on golden tickets with cut corners, tilted a touch; headings in gold italic serif. The chat column's frosting is almost clear, so the sky shows around the words. App versions that don't support styled messages get a frosted column instead.
-
-In a terminal there is no backdrop; the status line shows the time, usage and stars instead. The sky draws once a desktop or phone app is showing the session.
+In a terminal there is no backdrop; the status line shows the time, usage and stars instead. The view draws once a desktop or phone app is showing a session that runs on your own computer.
 
 ### Install
 

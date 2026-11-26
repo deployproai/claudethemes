@@ -174,98 +174,104 @@ function burst(cx: number, cy: number, r: number, color: string, delay: number):
   return `<g class="fw" opacity="0.35" stroke="${color}" fill="${color}" stroke-width="2.2" stroke-linecap="round" style="animation-delay:${delay}s">${rays}</g>`
 }
 const FIREWORKS = [
-  burst(240, 330, 110, '#ffd166', 0.5),
-  burst(1380, 300, 95, '#ef476f', 3.2),
-  burst(420, 520, 80, '#06d6a0', 6.1),
-  burst(1210, 520, 90, '#ffd166', 8.4),
-  burst(800, 230, 70, '#c77dff', 10.6),
+  burst(470, 360, 100, '#ffd166', 0.5),
+  burst(1080, 300, 90, '#ef476f', 3.6),
+  burst(760, 470, 70, '#06d6a0', 6.4),
+  burst(1260, 470, 80, '#ffd166', 9.1),
+  burst(600, 230, 64, '#c77dff', 11.2),
 ].join('')
 
-/** Slow confetti drifting down the whole sky. */
-const CONFETTI = (() => {
-  const rand = seeded(1231)
-  const colors = ['#ffd166', '#ef476f', '#06d6a0', '#4cc9f0', '#f8f9fa', '#c77dff']
-  return Array.from({ length: 46 }, (_, i) => {
-    const x = Math.round(rand() * 1600)
-    const w = (4 + rand() * 5).toFixed(1), h = (8 + rand() * 7).toFixed(1)
-    const dur = (16 + rand() * 18).toFixed(1), delay = (rand() * 30).toFixed(1)
-    const rot = Math.round(rand() * 180)
-    const color = colors[i % colors.length] ?? '#ffd166'
-    return `<rect class="cf" x="${x}" y="-30" width="${w}" height="${h}" fill="${color}" transform="rotate(${rot} ${x} -30)" style="animation-duration:${dur}s;animation-delay:-${delay}s"/>`
-  }).join('')
-})()
+/**
+ * The city below the window, in a 1400 x 520 box: a hazy far skyline, cream residential towers
+ * (one with a crane), a glass-faced block, trees, blue shed roofs, a construction plot, low-rise
+ * rooftops, and the elevated metro line with the road and traffic beneath it.
+ */
+function city(day: number): string {
+  const haze = mix('#1b2044', '#b9c5d1', day)
+  const far = mix('#171c3c', '#a8b6c5', day)
+  const wall = mix('#161c3a', '#ece6d9', day)
+  const shade = mix('#10152f', '#c9c1b2', day)
+  const glassFace = mix('#0e1a30', '#4f8096', day)
+  const green = mix('#0a1913', '#3d6a38', day)
+  const green2 = mix('#0d1f17', '#567f44', day)
+  const shed = mix('#15233a', '#83a9cb', day)
+  const shedLine = mix('#0e1a2c', '#5c86ac', day)
+  const sand = mix('#2a231f', '#d9b98a', day)
+  const roof = mix('#13182a', '#9aa2a8', day)
+  const road = mix('#0f121c', '#5d6065', day)
+  const viaduct = mix('#1b1f2b', '#bdbcb6', day)
+  const rand = seeded(42)
 
-/** A fluffy cloud of overlapping puffs, centred on (cx, cy). */
-function cloud(cx: number, cy: number, scale: number, opacity: number): string {
-  const puffs = [[-70, 8, 46], [-28, -14, 60], [26, -22, 70], [78, -4, 52], [112, 12, 36], [-110, 18, 32]]
-  const body = puffs.map(([dx, dy, r]) => `<circle cx="${cx + (dx ?? 0) * scale}" cy="${cy + (dy ?? 0) * scale}" r="${(r ?? 0) * scale}"/>`).join('')
-  return `<g opacity="${opacity}">${body}<rect x="${cx - 120 * scale}" y="${cy + 4 * scale}" width="${250 * scale}" height="${44 * scale}" rx="${22 * scale}"/></g>`
-}
-const CLOUDS = [
-  cloud(230, 170, 1.15, 0.95), cloud(1330, 140, 1.0, 0.9), cloud(760, 110, 0.8, 0.75),
-  cloud(520, 330, 0.9, 0.8), cloud(1110, 330, 1.2, 0.85), cloud(110, 430, 0.7, 0.7), cloud(1480, 450, 0.75, 0.7),
-].join('')
-
-/** A Manhattan-style skyline in a 1600 x 360 box, the ball-drop tower and its 2027 sign at the left. */
-function skyline(day: number): string {
-  const body = mix('#0d1330', '#5f7190', day)
-  const far = mix('#151c40', '#8394b0', day)
-  const lit = day > 0.5 ? '#c9d6ea' : '#ffd27a'
-  const rand = seeded(7)
-  // Far row: plain blocks for depth.
   let farRow = ''
-  for (let x = 0; x < 1600; ) {
-    const w = 40 + Math.round(rand() * 60), h = 90 + Math.round(rand() * 110)
-    farRow += `<rect x="${x}" y="${360 - h}" width="${w}" height="${h}"/>`
-    x += w + 2
+  for (let x = 0; x < 1400; ) {
+    const w = 18 + Math.round(rand() * 34), h = 70 + Math.round(rand() * 120)
+    farRow += `<rect x="${x}" y="${300 - h}" width="${w}" height="${h + 40}"/>`
+    x += w + Math.round(rand() * 10)
   }
-  // Near row: towers with lit windows.
-  const towers: { x: number; w: number; h: number; top?: string }[] = [
-    { x: 300, w: 70, h: 210 }, { x: 372, w: 90, h: 160 },
-    { x: 470, w: 64, h: 250, top: 'deco' }, { x: 540, w: 100, h: 190 },
-    { x: 650, w: 80, h: 140 }, { x: 735, w: 72, h: 300, top: 'mast' },
-    { x: 815, w: 110, h: 170 }, { x: 930, w: 60, h: 230 },
-    { x: 995, w: 95, h: 150 }, { x: 1095, w: 58, h: 280, top: 'glass' }, { x: 1155, w: 58, h: 280, top: 'glass' },
-    { x: 1220, w: 100, h: 180 }, { x: 1325, w: 70, h: 240, top: 'deco' }, { x: 1400, w: 110, h: 160 }, { x: 1515, w: 85, h: 200 },
-    { x: 0, w: 70, h: 170 }, { x: 72, w: 60, h: 130 },
+
+  const towers = [
+    { x: 170, w: 58, h: 300 }, { x: 236, w: 40, h: 250 }, { x: 330, w: 66, h: 210 }, { x: 405, w: 44, h: 270 },
+    { x: 520, w: 96, h: 250 }, { x: 622, w: 60, h: 220 }, { x: 860, w: 120, h: 210 }, { x: 990, w: 70, h: 250 },
+    { x: 1068, w: 104, h: 200 }, { x: 1180, w: 64, h: 270 }, { x: 1250, w: 96, h: 220 }, { x: 40, w: 70, h: 200 },
   ]
-  const near = towers.map(t => {
-    const y = 360 - t.h
-    let crown = ''
-    if (t.top === 'deco') {
-      const cx = t.x + t.w / 2
-      crown = `<path d="M${t.x + 6} ${y} L${cx} ${y - 70} L${t.x + t.w - 6} ${y} Z"/><rect x="${cx - 2}" y="${y - 110}" width="4" height="44"/>` +
-        [0.25, 0.45, 0.65].map(f => `<path d="M${t.x + 12 + f * 10} ${y - 70 * f + 6} Q${cx} ${y - 70 * f - 14} ${t.x + t.w - 12 - f * 10} ${y - 70 * f + 6}" fill="none" stroke="${lit}" stroke-width="2" opacity="0.7"/>`).join('')
-    } else if (t.top === 'mast') {
-      const cx = t.x + t.w / 2
-      crown = `<rect x="${t.x + 10}" y="${y - 30}" width="${t.w - 20}" height="30"/><rect x="${t.x + 22}" y="${y - 54}" width="${t.w - 44}" height="24"/><rect x="${cx - 3}" y="${y - 120}" width="6" height="66"/><circle cx="${cx}" cy="${y - 122}" r="4" fill="#ff5d5d" class="beacon"/>`
-    } else if (t.top === 'glass') {
-      crown = `<path d="M${t.x} ${y} L${t.x + t.w} ${y - 26} L${t.x + t.w} ${y} Z"/>`
-    }
-    return `<g>${crown}<rect x="${t.x}" y="${y}" width="${t.w}" height="${t.h}"/><rect x="${t.x + 6}" y="${y + 8}" width="${t.w - 12}" height="${t.h - 8}" fill="url(#windows)"/></g>`
+  const mid = towers.map(t => {
+    const y = 420 - t.h
+    return `<rect x="${t.x}" y="${y}" width="${t.w}" height="${t.h}" fill="${wall}"/><rect x="${t.x + t.w * 0.62}" y="${y}" width="${t.w * 0.38}" height="${t.h}" fill="${shade}"/><rect x="${t.x + 5}" y="${y + 8}" width="${t.w - 10}" height="${t.h - 8}" fill="url(#flats)"/>`
   }).join('')
-  // The ball-drop tower, with its numerals and the ball on the mast.
-  const bx = 150, bw = 120, bh = 230, by = 360 - bh
-  const tower = `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}"/>
-<rect x="${bx + 8}" y="${by + 70}" width="${bw - 16}" height="${bh - 70}" fill="url(#windows)"/>
-<rect x="${bx + 6}" y="${by + 6}" width="${bw - 12}" height="54" rx="4" fill="#120c02"/>
-<text x="${bx + bw / 2}" y="${by + 48}" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-weight="800" font-size="44" letter-spacing="2" fill="#ffd166" class="sign">2027</text>
-<rect x="${bx + bw / 2 - 3}" y="${by - 120}" width="6" height="120"/>
-<g class="ball"><circle cx="${bx + bw / 2}" cy="${by - 112}" r="20" fill="url(#ball)"/><circle cx="${bx + bw / 2}" cy="${by - 112}" r="34" fill="#ffe7a3" opacity="0.25"/></g>`
-  return `<g fill="${far}">${farRow}</g><g fill="${body}">${near}${tower}</g>
-<rect x="0" y="350" width="1600" height="10" fill="${mix('#05081a', '#3b4a63', day)}"/>
-<g opacity="${(1 - day * 0.7).toFixed(2)}" fill="${lit}"></g>`
+
+  // The tall white tower with a crane, and a glass-faced block in front of it.
+  const tall = `<rect x="740" y="60" width="74" height="360" fill="${wall}"/><rect x="790" y="60" width="24" height="360" fill="${shade}"/><rect x="746" y="70" width="62" height="350" fill="url(#flats)"/>
+<rect x="752" y="40" width="40" height="22" fill="${shade}"/><path d="M770 40V-10M770 -6H850M770 -6L740 6M850 -6V10" fill="none" stroke="${mix('#2a2f45', '#8d8f8a', day)}" stroke-width="3"/>
+<rect x="680" y="190" width="66" height="230" fill="${glassFace}"/><rect x="684" y="196" width="58" height="224" fill="url(#panes)"/><rect x="746" y="230" width="90" height="190" fill="${wall}"/><rect x="752" y="238" width="78" height="182" fill="url(#flats)"/>`
+
+  const trees = Array.from({ length: 34 }, () => {
+    const x = Math.round(rand() * 1400), y = 400 + Math.round(rand() * 44), r = 14 + Math.round(rand() * 18)
+    return `<circle cx="${x}" cy="${y}" r="${r}" fill="${rand() > 0.5 ? green : green2}"/>`
+  }).join('')
+
+  const lows = Array.from({ length: 26 }, () => {
+    const x = 980 + Math.round(rand() * 420), y = 430 + Math.round(rand() * 40), w = 20 + Math.round(rand() * 30)
+    return `<rect x="${x}" y="${y}" width="${w}" height="${14 + Math.round(rand() * 10)}" fill="${rand() > 0.7 ? shed : roof}"/>`
+  }).join('')
+
+  const sheds = `<path d="M0 452L300 440L470 520H0Z" fill="${shed}"/>
+${Array.from({ length: 9 }, (_, k) => `<path d="M${k * 34} ${451 - k * 1.3}L${170 + k * 34} 520" stroke="${shedLine}" stroke-width="2"/>`).join('')}
+<path d="M90 420L300 412L330 440L120 448Z" fill="${mix('#1c2236', '#e4e6e3', day)}"/>
+${Array.from({ length: 12 }, (_, k) => `<path d="M${96 + k * 18} ${446 - k * 0.7}L${104 + k * 18} ${420 - k * 0.7}" stroke="${shedLine}" stroke-width="1.5"/>`).join('')}
+<rect x="430" y="370" width="150" height="80" fill="${wall}"/><rect x="436" y="378" width="138" height="72" fill="url(#flats)"/>
+<rect x="600" y="390" width="160" height="70" fill="${mix('#171c34', '#dcdcd8', day)}"/><rect x="606" y="398" width="148" height="62" fill="url(#flats)"/>`
+
+  const plot = `<path d="M790 450L1050 440L1080 500L800 512Z" fill="${sand}"/><path d="M790 450L1050 440L1080 500" fill="none" stroke="${mix('#2c3346', '#9fb3c4', day)}" stroke-width="4"/>`
+
+  // The metro viaduct climbing to the right, its pillars, and the road with traffic beneath.
+  const pillars = [560, 700, 840, 980, 1120, 1260].map(x => {
+    const top = 516 - (x - 500) * 0.085
+    return `<rect x="${x}" y="${top}" width="9" height="${540 - top}" fill="${viaduct}"/>`
+  }).join('')
+  const lights = day > 0.5 ? '#ffffff' : '#fff2c4'
+  const cars = Array.from({ length: 16 }, (_, k) => {
+    const x = 560 + k * 52 + Math.round(rand() * 20)
+    const y = 522 - (x - 500) * 0.085 + 8
+    const color = ['#f2f2f2', '#f4c24f', '#d9534f', '#3a3f4a'][k % 4] ?? '#f2f2f2'
+    return `<rect x="${x}" y="${y}" width="16" height="7" rx="2" fill="${day > 0.5 ? color : '#1a1d27'}"/>${day <= 0.5 ? `<circle cx="${x + 1}" cy="${y + 4}" r="2.2" fill="${k % 2 ? '#ff5d5d' : lights}"/>` : ''}`
+  }).join('')
+  const metro = `<path d="M500 528L1400 452L1400 470L500 546Z" fill="${road}"/>
+<g class="traffic">${cars}</g>
+${pillars}
+<path d="M480 512L1400 434L1400 448L480 526Z" fill="${viaduct}"/>
+<path d="M480 512L1400 434" stroke="${mix('#2b3042', '#e6e5df', day)}" stroke-width="2"/>`
+
+  return `<g fill="${haze}" opacity="0.9">${farRow}</g><g fill="${far}" opacity="0.6">${farRow}</g>${mid}${tall}${trees}${lows}${sheds}${plot}${metro}`
 }
 
 /**
  * Where the sun or moon sits, as percentages of the backdrop, t from 0 (rising) to 1 (setting).
- * The desktop app frosts a chat column down the middle, so the body climbs the open left margin,
- * crosses the middle quickly around noon or midnight, and sets down the right margin.
+ * The desktop app keeps the chat down the middle and the glass tower stands on the right, so the
+ * body rises out of the city in the open left margin, peaks at noon or midnight, and sinks back.
  */
 function arc(t: number): { x: number; y: number } {
-  const across = Math.max(0, Math.min(1, (t - 0.47) / 0.06))
-  const eased = across * across * (3 - 2 * across)
-  return { x: 10 + 80 * eased, y: 74 - 38 * Math.sin(Math.PI * t) }
+  const lift = Math.sin(Math.PI * t)
+  return { x: 10 + 3 * lift, y: 62 - 44 * lift }
 }
 
 export function scene(s: Sky | null, nowMs: number): string {
@@ -275,9 +281,10 @@ export function scene(s: Sky | null, nowMs: number): string {
   const warmth = Math.max(0, 1 - Math.abs(day - 0.5) * 2)
   const percent = s?.percent ?? 0
 
-  const top = mix('#050816', '#2f6fd0', day)
-  const middle = mix(mix('#0b1026', '#69a6ea', day), '#c46a6a', warmth * 0.45)
-  const bottom = mix(mix('#1f2350', '#cfe7f8', day), '#f39a5c', warmth * 0.8)
+  // The photo's sky: deep blue overhead, paling to a warm grey haze over the city.
+  const top = mix('#060a1c', '#3f78cf', day)
+  const middle = mix(mix('#10163a', '#86afe2', day), '#c46a6a', warmth * 0.4)
+  const bottom = mix(mix('#2b2650', '#d6dcdf', day), '#f0a066', warmth * 0.75)
 
   const visible = starsLeft(s)
   const keep = new Set(ORDER.slice(0, visible))
@@ -293,7 +300,7 @@ export function scene(s: Sky | null, nowMs: number): string {
   const t = isSun ? (hours - 6) / 12 : (((hours - 18) + 24) % 24) / 12
   const { x, y } = arc(t)
   const disc = isSun
-    ? (percent >= 85 ? '#ff9a52' : percent >= 65 ? '#ffc35c' : '#ffd96a')
+    ? (percent >= 85 ? '#ff9a52' : percent >= 65 ? '#ffc35c' : '#ffe08a')
     : (percent >= 85 ? '#f1b48a' : percent >= 65 ? '#f3d59a' : '#f4ecd2')
   const ink = '#1a2140'
   const sunRays = isSun ? `<g class="rays" stroke="${disc}" stroke-width="7" stroke-linecap="round">${Array.from({ length: 12 }, (_, k) => {
@@ -303,7 +310,10 @@ export function scene(s: Sky | null, nowMs: number): string {
   const craters = isSun ? '' : `<circle cx="-42" cy="-40" r="14" fill="${ink}" opacity="0.07"/><circle cx="42" cy="46" r="19" fill="${ink}" opacity="0.06"/><circle cx="32" cy="-52" r="8" fill="${ink}" opacity="0.07"/>`
 
   const time = istLabel(nowMs)
-  const strip = left !== null && s && s.used !== null ? `${short(s.used)} used · ${short(left)} left · ${visible} stars` : `${visible} stars tonight`
+  const strip = left !== null && s && s.used !== null ? `${short(s.used)} used · ${short(left)} left` : `${short(s?.window ?? 0)} window`
+  const glow = day > 0.5 ? 0.35 : 0.9
+  const towerTop = mix('#0b1328', '#2d527c', day)
+  const towerBottom = mix('#18264a', '#9cbfe0', day)
 
   // The root maps its units to percentages of the backdrop; each nested drawing keeps its own shape.
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -312,58 +322,83 @@ export function scene(s: Sky | null, nowMs: number): string {
 @keyframes twinkle { from { opacity: 0.25; } to { opacity: 1; } }
 .fw { transform-box: fill-box; transform-origin: center; animation: burst 13s ease-out infinite; }
 @keyframes burst { 0% { transform: scale(0.15); opacity: 0; } 3% { opacity: 0.9; } 22% { transform: scale(1); opacity: 0; } 100% { transform: scale(1); opacity: 0; } }
-.cf { animation-name: fall; animation-timing-function: linear; animation-iteration-count: infinite; }
-@keyframes fall { from { transform: translate(0, 0) rotate(0deg); } to { transform: translate(60px, 1060px) rotate(220deg); } }
-.clouds { animation: drift 180s linear infinite alternate; }
-@keyframes drift { from { transform: translateX(-70px); } to { transform: translateX(70px); } }
 .rays { animation: spin 140s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .halo { animation: breathe 9s ease-in-out infinite alternate; }
 @keyframes breathe { from { opacity: 0.6; } to { opacity: 0.95; } }
-.ball { animation: drop 18s ease-in-out infinite alternate; }
-@keyframes drop { from { transform: translateY(0); } to { transform: translateY(92px); } }
-.sign { animation: glow 6s ease-in-out infinite alternate; }
-@keyframes glow { from { opacity: 0.8; } to { opacity: 1; } }
+.traffic { animation: roll 26s ease-in-out infinite alternate; }
+@keyframes roll { from { transform: translate(0, 0); } to { transform: translate(-90px, 7.6px); } }
+.led { animation: led 5s ease-in-out infinite alternate; }
+@keyframes led { from { opacity: 0.82; } to { opacity: 1; } }
+.bokeh { animation: shimmer 12s ease-in-out infinite alternate; }
+@keyframes shimmer { from { opacity: 0.75; } to { opacity: 1; } }
 </style>
 <defs>
 <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0" stop-color="${top}"/><stop offset="0.6" stop-color="${middle}"/><stop offset="1" stop-color="${bottom}"/>
+<stop offset="0" stop-color="${top}"/><stop offset="0.55" stop-color="${middle}"/><stop offset="1" stop-color="${bottom}"/>
+</linearGradient>
+<linearGradient id="haze" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="${bottom}" stop-opacity="0"/><stop offset="1" stop-color="${bottom}" stop-opacity="${(0.25 + day * 0.45).toFixed(2)}"/>
+</linearGradient>
+<linearGradient id="frame" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0" stop-color="#0f2a2c" stop-opacity="0.85"/><stop offset="1" stop-color="#2e5a5c" stop-opacity="0"/>
+</linearGradient>
+<linearGradient id="tower" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="${towerTop}"/><stop offset="1" stop-color="${towerBottom}"/>
 </linearGradient>
 <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
-<stop offset="0.4" stop-color="${disc}" stop-opacity="${isSun ? 0.6 : 0.4}"/><stop offset="1" stop-color="${disc}" stop-opacity="0"/>
+<stop offset="0.4" stop-color="${disc}" stop-opacity="${isSun ? 0.55 : 0.4}"/><stop offset="1" stop-color="${disc}" stop-opacity="0"/>
 </radialGradient>
-<radialGradient id="ball" cx="0.35" cy="0.35" r="0.7">
-<stop offset="0" stop-color="#ffffff"/><stop offset="0.45" stop-color="#ffe08a"/><stop offset="1" stop-color="#e09b2d"/>
+<radialGradient id="bokeh" cx="0.5" cy="0.5" r="0.5">
+<stop offset="0.75" stop-color="${day > 0.5 ? '#f6cdbd' : '#ffcf9a'}" stop-opacity="0.9"/><stop offset="1" stop-color="${day > 0.5 ? '#f6cdbd' : '#ffcf9a'}" stop-opacity="0"/>
 </radialGradient>
-<pattern id="windows" width="14" height="18" patternUnits="userSpaceOnUse">
-<rect x="2" y="3" width="6" height="8" fill="${day > 0.5 ? '#c9d6ea' : '#ffd27a'}" opacity="${day > 0.5 ? 0.35 : 0.85}"/>
-<rect x="9" y="3" width="3" height="8" fill="${day > 0.5 ? '#c9d6ea' : '#ffb84d'}" opacity="${day > 0.5 ? 0.2 : 0.4}"/>
+<pattern id="flats" width="11" height="13" patternUnits="userSpaceOnUse">
+<rect x="2" y="3" width="6" height="6" fill="${day > 0.5 ? '#7c8790' : '#ffd27a'}" opacity="${day > 0.5 ? 0.5 : 0.8}"/>
+</pattern>
+<pattern id="panes" width="10" height="12" patternUnits="userSpaceOnUse">
+<rect width="10" height="12" fill="none" stroke="${day > 0.5 ? '#2f5868' : '#ffcf7a'}" stroke-width="1" opacity="${day > 0.5 ? 0.6 : 0.5}"/>
+</pattern>
+<pattern id="curtain" width="20" height="28" patternUnits="userSpaceOnUse">
+<rect width="20" height="28" fill="none" stroke="${day > 0.5 ? '#1d3348' : '#0a1020'}" stroke-width="1.4"/>
+<rect x="2" y="3" width="16" height="10" fill="${day > 0.5 ? '#c9dcef' : '#ffd27a'}" opacity="${day > 0.5 ? 0.18 : 0.22}"/>
 </pattern>
 </defs>
 <rect width="100" height="100" fill="url(#sky)"/>
-<svg x="0" y="0" width="100" height="78" viewBox="0 0 1600 760" preserveAspectRatio="xMidYMid slice"><g class="stars" opacity="${(1 - day).toFixed(2)}">${lit}</g></svg>
-${day > 0.05 ? `<svg x="0" y="4" width="100" height="62" viewBox="0 0 1600 600" preserveAspectRatio="xMidYMid slice"><g class="clouds" fill="#ffffff" opacity="${Math.min(1, day * 1.1).toFixed(2)}">${CLOUDS}</g></svg>` : ''}
-<svg x="0" y="0" width="100" height="80" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice"><g opacity="${(day > 0.5 ? 0.55 : 1).toFixed(2)}">${FIREWORKS}</g></svg>
-<svg x="${(x - 9).toFixed(2)}" y="${(y - 13).toFixed(2)}" width="18" height="26" viewBox="-160 -160 320 320" preserveAspectRatio="xMidYMid meet">
+<svg x="0" y="0" width="86" height="60" viewBox="0 0 1400 600" preserveAspectRatio="xMidYMid slice"><g class="stars" opacity="${(1 - day).toFixed(2)}">${lit}</g></svg>
+<svg x="0" y="0" width="86" height="70" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice"><g opacity="${(day > 0.5 ? 0.5 : 1).toFixed(2)}">${FIREWORKS}</g></svg>
+<svg x="${(x - 8).toFixed(2)}" y="${(y - 11.5).toFixed(2)}" width="16" height="23" viewBox="-160 -160 320 320" preserveAspectRatio="xMidYMid meet">
 <circle class="halo" r="160" fill="url(#halo)"/>${sunRays}
 <circle r="104" fill="${disc}"/>${craters}
 <text y="-30" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" letter-spacing="3" fill="${ink}" opacity="0.7">CONTEXT</text>
 <text y="6" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="26" font-weight="700" fill="${ink}">${usedLabel}</text>
 <text y="38" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="20" fill="${ink}" opacity="0.85">${leftLabel}</text>
-<text y="64" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="${ink}" opacity="0.6">${percent}% of the window</text>
+<text y="64" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="${ink}" opacity="0.6">${visible} stars left</text>
 </svg>
-<svg x="0" y="0" width="100" height="100" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice"><g>${CONFETTI}</g></svg>
-<svg x="0" y="62" width="100" height="38" viewBox="0 0 1600 360" preserveAspectRatio="xMinYMax slice">${skyline(day)}</svg>
-<svg x="1.5" y="3" width="17" height="24" viewBox="0 0 340 300" preserveAspectRatio="xMinYMin meet">
-<text x="0" y="70" font-family="ui-serif, serif" font-style="italic" font-weight="700" font-size="62" fill="#ffd166">Happy</text>
-<text x="0" y="140" font-family="ui-serif, serif" font-style="italic" font-weight="700" font-size="62" fill="#ffd166">New Year</text>
-<text x="0" y="228" font-family="ui-sans-serif, sans-serif" font-weight="800" font-size="84" letter-spacing="4" fill="#ffffff">2027</text>
-<text x="2" y="268" font-family="ui-monospace, monospace" font-size="20" letter-spacing="5" fill="#ffffff" opacity="0.85">NEW YORK · ${isSun ? 'DAY' : 'NIGHT'}</text>
+<rect x="0" y="40" width="100" height="22" fill="url(#haze)"/>
+<svg x="0" y="50" width="86" height="50" viewBox="0 0 1400 520" preserveAspectRatio="xMidYMax slice">${city(day)}</svg>
+<svg x="0" y="0" width="86" height="100" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+<g class="bokeh"><circle cx="560" cy="360" r="62" fill="url(#bokeh)" opacity="${glow}"/><circle cx="300" cy="460" r="40" fill="url(#bokeh)" opacity="${glow}"/><circle cx="600" cy="510" r="26" fill="url(#bokeh)" opacity="${glow}"/></g>
 </svg>
-<svg x="80.5" y="3" width="18" height="12" viewBox="0 0 420 170" preserveAspectRatio="xMaxYMin meet">
-<rect x="4" y="4" width="412" height="162" rx="30" fill="#0b1026" fill-opacity="0.78" stroke="#ffd166" stroke-opacity="0.8" stroke-width="3"/>
-<text x="210" y="80" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="58" font-weight="800" fill="#fdf6e3">${time}</text>
-<text x="210" y="128" text-anchor="middle" font-family="ui-monospace, monospace" font-size="20" fill="#c6cbe4">${strip}</text>
+<rect x="0" y="0" width="5" height="100" fill="url(#frame)"/>
+<path d="M5 0L18 0L5 38Z" fill="#ffffff" opacity="0.05"/>
+<svg x="86" y="0" width="14" height="100" viewBox="0 0 140 1000" preserveAspectRatio="none">
+<rect width="140" height="1000" fill="url(#tower)"/>
+<rect width="140" height="1000" fill="url(#curtain)"/>
+<path d="M0 0L140 0L140 1000L0 1000" fill="none" stroke="#0a1222" stroke-width="3"/>
+<path d="M0 0L60 0L0 300Z" fill="#ffffff" opacity="${(0.04 + day * 0.08).toFixed(2)}"/>
+</svg>
+<svg x="86.6" y="3" width="12.8" height="11" viewBox="0 0 300 200" preserveAspectRatio="xMidYMin meet">
+<rect x="4" y="4" width="292" height="192" rx="10" fill="#070b16" stroke="#3a4a63" stroke-width="3"/>
+<text x="150" y="58" text-anchor="middle" font-family="ui-monospace, monospace" font-size="20" letter-spacing="6" fill="#7f8fa8">IST</text>
+<text class="led" x="150" y="118" text-anchor="middle" font-family="ui-monospace, monospace" font-weight="700" font-size="50" fill="#ffb347">${time.replace(' IST', '')}</text>
+<text x="150" y="164" text-anchor="middle" font-family="ui-monospace, monospace" font-size="18" fill="#c6cbe4">${strip}</text>
+</svg>
+<svg x="86.6" y="30" width="12.8" height="18" viewBox="0 0 300 420" preserveAspectRatio="xMidYMid meet">
+<rect x="4" y="4" width="292" height="412" rx="10" fill="#070b16" stroke="#3a4a63" stroke-width="3"/>
+<text class="led" x="150" y="110" text-anchor="middle" font-family="ui-serif, serif" font-style="italic" font-weight="700" font-size="56" fill="#ffd166">Happy</text>
+<text class="led" x="150" y="190" text-anchor="middle" font-family="ui-serif, serif" font-style="italic" font-weight="700" font-size="56" fill="#ffd166">New Year</text>
+<text class="led" x="150" y="300" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-weight="800" font-size="84" fill="#ffffff">2027</text>
+<text x="150" y="370" text-anchor="middle" font-family="ui-monospace, monospace" font-size="20" letter-spacing="5" fill="#7f8fa8">MUMBAI</text>
 </svg>
 </svg>`
 }
@@ -425,8 +460,8 @@ export const register: Register = on => {
     const now = (await read($, clock)) ?? (await $.clock.now())
     const body = istMinutes(now) / 60 >= 6 && istMinutes(now) / 60 < 18 ? 'sun' : 'moon'
     const alt = s && s.used !== null
-      ? `A New Year sky at ${istLabel(now)}. The ${body} reads ${short(s.used)} tokens used and ${short(Math.max(0, s.window - s.used))} left; ${starsLeft(s)} of ${TOTAL_STARS} stars remain.`
-      : `A New Year sky at ${istLabel(now)}, with the ${body} showing the context window.`
+      ? `A Mumbai skyline seen from an office window at ${istLabel(now)}. The ${body} reads ${short(s.used)} tokens used and ${short(Math.max(0, s.window - s.used))} left; ${starsLeft(s)} of ${TOTAL_STARS} stars remain.`
+      : `A Mumbai skyline seen from an office window at ${istLabel(now)}, with the ${body} showing the context window.`
 
     return <Svg source={scene(s, now)} alt={alt} isInteractive />
   })

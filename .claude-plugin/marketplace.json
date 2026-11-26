@@ -7,7 +7,7 @@
     {
       "name": "new-year-sky",
       "source": "./plugins/new-year-sky",
-      "description": "A New Year sky over a New York skyline that follows the time of day in IST: stars thin out as the context window fills, and the sun or moon shows tokens used and left."
+      "description": "A New Year view of Mumbai from a high office window, following the time of day in IST: stars thin out as the context window fills, and the sun or moon shows tokens used and left."
     }
   ],
   "description": "Themes for Claude Code, packaged as mods."
