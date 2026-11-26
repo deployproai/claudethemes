@@ -2,8 +2,9 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionContextUsage, ThemeSetArgs } from 'claude-code'
 
 import { makeColors } from './make-colors.js'
+import { matchCountries } from './countries'
 import { PHOTO_HEIGHT, PHOTO_PATHS, PHOTO_WIDTH } from './photo'
-import type { Place, Sky, Weather } from '../types'
+import type { City, Place, Search, Sky, Weather } from '../types'
 
 // An office-window sky that follows the time of day in India (IST). By night the
 // moon is up and the stars go out one by one as the context window fills; by
@@ -16,6 +17,9 @@ const sky = atom({ plugin: 'day-at-office', key: 'sky' } as const, null)
 const clock = atom({ plugin: 'day-at-office', key: 'now' } as const, null)
 const where = atom({ plugin: 'day-at-office', key: 'place' } as const, null)
 const conditions = atom({ plugin: 'day-at-office', key: 'weather' } as const, null)
+const finder = atom({ plugin: 'day-at-office', key: 'search' } as const, { query: '', results: [], note: '' } as Search)
+const PANE = 'city'
+const MUMBAI_CITY: City = { name: 'Mumbai', label: 'Mumbai, Maharashtra, India', lat: 19.076, lon: 72.8777 }
 
 /** Until the city's own figures arrive, or if they never do, the sky follows Mumbai. */
 const MUMBAI: Place = { name: 'Mumbai', lat: 19.076, lon: 72.8777, offsetSec: 19_800, tz: 'IST' }
@@ -444,15 +448,89 @@ async function status($: EngineInterface): Promise<void> {
   $.ui.status(statusLine(await read($, sky), (await read($, clock)) ?? (await $.clock.now()), (await read($, where)) ?? MUMBAI, await read($, conditions)))
 }
 
-/** Finds the city by name ("Paris" or "Paris, France") with Open-Meteo's free geocoder; null if not found. */
-async function findCity($: EngineInterface, query: string): Promise<{ name: string; lat: number; lon: number } | null> {
-  const [name = '', ...rest] = query.split(',').map(part => part.trim())
-  const hint = rest.join(' ').toLowerCase()
-  const r = await $.http.fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=10&language=en&format=json`)
-  if (!r.ok) return null
-  const found = (JSON.parse(r.text) as { results?: { name: string; latitude: number; longitude: number; country?: string; country_code?: string; admin1?: string }[] }).results ?? []
-  const pick = (hint ? found.find(c => [c.country, c.country_code, c.admin1].some(v => v && (v.toLowerCase() === hint || v.toLowerCase().startsWith(hint)))) : undefined) ?? found[0]
-  return pick ? { name: pick.name, lat: pick.latitude, lon: pick.longitude } : null
+type Found = { name: string; latitude: number; longitude: number; country?: string; admin1?: string; population?: number }
+
+/**
+ * Places matching what was typed: countries whose name starts with it first (each follows its
+ * capital), then cities from Open-Meteo's free geocoder, most populous first. From three letters
+ * the geocoder matches loosely.
+ */
+async function searchCities($: EngineInterface, query: string): Promise<City[]> {
+  const countries: City[] = matchCountries(query).slice(0, 3).map(c => ({
+    name: c.capital,
+    label: `${c.name} · ${c.capital}`,
+    lat: 0,
+    lon: 0,
+    capitalOf: { capital: c.capital, code: c.code },
+  }))
+  const r = await $.http.fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=20&language=en&format=json`)
+  if (!r.ok) throw new Error(`the city search answered ${r.status}`)
+  const found = ((JSON.parse(r.text) as { results?: Found[] }).results ?? []).sort((a, b) => (b.population ?? 0) - (a.population ?? 0))
+  const cities = found.map(c => ({
+    name: c.name,
+    label: [c.name, c.admin1 && c.admin1 !== c.name ? c.admin1 : '', c.country ?? ''].filter(Boolean).join(', '),
+    lat: c.latitude,
+    lon: c.longitude,
+  }))
+  return [...countries, ...cities].slice(0, 8)
+}
+
+/** A country picked in the search becomes its capital, looked up within that country. */
+async function resolve($: EngineInterface, city: City): Promise<City | null> {
+  if (!city.capitalOf) return city
+  const { capital, code } = city.capitalOf
+  const r = await $.http.fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(capital)}&count=1&language=en&format=json&countryCode=${code}`)
+  const hit = r.ok ? ((JSON.parse(r.text) as { results?: Found[] }).results ?? [])[0] : undefined
+  if (!hit) return null
+  return { name: hit.name, label: [hit.name, hit.country ?? ''].filter(Boolean).join(', '), lat: hit.latitude, lon: hit.longitude }
+}
+
+/** The city chosen last, kept across sessions; Mumbai until one is chosen. */
+async function chosenCity($: EngineInterface): Promise<City> {
+  const kept = (await $.store.get('city')) as City | undefined
+  return kept && typeof kept.lat === 'number' && typeof kept.lon === 'number' ? kept : MUMBAI_CITY
+}
+
+/** Reads the city's weather and puts the sky there. Offline, it leaves the sky as it was. */
+async function follow($: EngineInterface, city: City): Promise<void> {
+  try {
+    const got = await readWeather($, city, await $.clock.now())
+    if (!got) return
+    await update($, where, () => got.place)
+    await update($, conditions, () => got.weather)
+    await status($)
+  } catch (error) {
+    $.ui.log(`day-at-office: weather not available (${String(error)})`)
+  }
+}
+
+/** Runs the search for what is typed, once three letters are in; a reply to an older query is dropped. */
+async function onType($: EngineInterface, value: string): Promise<void> {
+  const query = value.trim()
+  if (query.length < 3) {
+    await update($, finder, () => ({ query, results: [], note: 'Type at least 3 letters' }))
+    return
+  }
+  await update($, finder, now => ({ ...now, query, note: 'Searching…' }))
+  try {
+    const results = await searchCities($, query)
+    await update($, finder, now => now.query !== query ? now : { query, results, note: results.length ? '' : `No city matches "${query}"` })
+  } catch (error) {
+    await update($, finder, now => now.query !== query ? now : { query, results: [], note: `Search not available (${String(error)})` })
+  }
+}
+
+/** Keeps the city for later sessions, moves the sky there and closes the search. */
+async function choose($: EngineInterface, picked: City): Promise<void> {
+  const city = await resolve($, picked).catch(() => null)
+  if (!city) {
+    await update($, finder, now => ({ ...now, note: `Couldn't find ${picked.name}; try typing the city instead` }))
+    return
+  }
+  await $.store.set('city', city)
+  await $.ui.close({ id: PANE })
+  $.ui.toast(`Sky now follows ${city.label}`)
+  await follow($, city)
 }
 
 /** The city's current weather, UTC offset and zone abbreviation from Open-Meteo's free forecast. */
@@ -469,8 +547,7 @@ async function readWeather($: EngineInterface, city: { name: string; lat: number
   }
 }
 
-export const register: Register = (on, options) => {
-  const wanted = (typeof options.city === 'string' ? options.city : '').trim() || 'Mumbai'
+export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const unpainted = problems.find(line => line.startsWith("Desktop won't paint"))
@@ -489,27 +566,12 @@ export const register: Register = (on, options) => {
     await update($, clock, () => now)
     await status($)
 
-    // Look the city up once, then read its weather now and every twenty minutes. Offline, or for a
-    // name the geocoder doesn't know, the sky stays on Mumbai with fair weather.
-    let city: { name: string; lat: number; lon: number } | null = null
-    const refresh = async () => {
-      try {
-        city ??= await findCity($, wanted)
-        if (!city) {
-          $.ui.log(`day-at-office: no city called "${wanted}" found; following Mumbai`)
-          return
-        }
-        const got = await readWeather($, city, await $.clock.now())
-        if (!got) return
-        await update($, where, () => got.place)
-        await update($, conditions, () => got.weather)
-        await status($)
-      } catch (error) {
-        $.ui.log(`day-at-office: weather not available (${String(error)})`)
-      }
-    }
-    void refresh()
-    $.clock.every(20 * 60_000, () => { void refresh() })
+    // Follow the chosen city's weather now and every twenty minutes. Offline, the sky stays on
+    // Mumbai's time with fair weather.
+    void chosenCity($).then(city => follow($, city))
+    $.clock.every(20 * 60_000, () => { void chosenCity($).then(city => follow($, city)) })
+
+    await $.command.register({ name: 'city', description: 'Search for the city whose time, sun, season and weather the sky follows' })
 
     // Move the clock, the sun and the moon along every half minute.
     $.clock.every(30_000, () => {
@@ -521,6 +583,44 @@ export const register: Register = (on, options) => {
     })
 
     return next(e)
+  })
+
+  on('command.run', { command: 'city' }, async $ => {
+    const current = await chosenCity($)
+    await update($, finder, () => ({ query: '', results: [], note: `Now following ${current.label}` }))
+    await $.ui.open({ id: PANE, title: 'Choose a city', focus: true, closeOnEscape: true, holdToasts: true, rows: 14 })
+
+    return { text: 'Type the first three letters of a city, then pick it from the list.' }
+  })
+
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const { Box, Button, Input, Text } = $.ui.resolve(e)
+    const found = await read($, finder)
+
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Input
+          key="query"
+          label="City"
+          placeholder="First 3 letters of a city or country, e.g. Fra"
+          autoFocus
+          submitLabel="Pick first"
+          onInput={value => { void onType($, value) }}
+          onSubmit={() => {
+            const first = found.results[0]
+            if (first) void choose($, first)
+          }}
+        />
+        {found.note !== '' && <Text dimColor>{found.note}</Text>}
+        <Box flexDirection="column">
+          {found.results.map((city, n) => (
+            <Button key={`city-${n}`} hotkey={String(n + 1)} onPress={() => { void choose($, city) }}>
+              {`${n + 1}  ${city.label}`}
+            </Button>
+          ))}
+        </Box>
+      </Box>
+    )
   })
 
   on('session.measure', async ($, e, next) => {

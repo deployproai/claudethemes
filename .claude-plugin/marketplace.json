@@ -7,7 +7,7 @@
     {
       "name": "day-at-office",
       "source": "./plugins/day-at-office",
-      "description": "The view of Mumbai from a high office window, traced from a photograph, under the live sky of a city you choose: real sunrise and sunset, current weather and season, and a gauge on the right showing context and tokens used."
+      "description": "The view of Mumbai from a high office window, traced from a photograph, under the live sky of a city you search for with /city: real sunrise and sunset, current weather and season, and a gauge on the right showing context and tokens used."
     }
   ],
   "description": "Themes for Claude Code, packaged as mods."
