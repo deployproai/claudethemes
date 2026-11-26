@@ -1,9 +1,9 @@
 import { atom, read, update } from 'claude-code'
-import type { Register, SessionContextUsage, ThemeSetArgs } from 'claude-code'
+import type { EngineInterface, Register, SessionContextUsage, ThemeSetArgs } from 'claude-code'
 
 import { makeColors } from './make-colors.js'
 import { PHOTO_HEIGHT, PHOTO_PATHS, PHOTO_WIDTH } from './photo'
-import type { Sky } from '../types'
+import type { Place, Sky, Weather } from '../types'
 
 // An office-window sky that follows the time of day in India (IST). By night the
 // moon is up and the stars go out one by one as the context window fills; by
@@ -12,9 +12,13 @@ import type { Sky } from '../types'
 
 const SCENE = 'day-at-office'
 const TOTAL_STARS = 160
-const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
 const sky = atom({ plugin: 'day-at-office', key: 'sky' } as const, null)
 const clock = atom({ plugin: 'day-at-office', key: 'now' } as const, null)
+const where = atom({ plugin: 'day-at-office', key: 'place' } as const, null)
+const conditions = atom({ plugin: 'day-at-office', key: 'weather' } as const, null)
+
+/** Until the city's own figures arrive, or if they never do, the sky follows Mumbai. */
+const MUMBAI: Place = { name: 'Mumbai', lat: 19.076, lon: 72.8777, offsetSec: 19_800, tz: 'IST' }
 
 const { theme, problems } = makeColors({
   label: 'Day at office',
@@ -105,25 +109,77 @@ function toSky(c: SessionContextUsage): Sky {
   return { used, window: c.window, percent: Math.max(0, Math.min(100, percent)) }
 }
 
-/** Minutes past midnight in IST (UTC+5:30, no daylight saving). */
-function istMinutes(epochMs: number): number {
-  const d = new Date(epochMs + IST_OFFSET_MS)
+/** Minutes past midnight in the city's local time. */
+function localMinutes(epochMs: number, p: Place): number {
+  const d = new Date(epochMs + p.offsetSec * 1000)
   return d.getUTCHours() * 60 + d.getUTCMinutes()
 }
 
-/** "10:42 AM IST". */
-function istLabel(epochMs: number): string {
-  const m = istMinutes(epochMs)
+/** "10:42 AM". */
+function clockLabel(epochMs: number, p: Place): string {
+  const m = localMinutes(epochMs, p)
   const h24 = Math.floor(m / 60)
   const h12 = h24 % 12 === 0 ? 12 : h24 % 12
-  return `${h12}:${String(m % 60).padStart(2, '0')} ${h24 < 12 ? 'AM' : 'PM'} IST`
+  return `${h12}:${String(m % 60).padStart(2, '0')} ${h24 < 12 ? 'AM' : 'PM'}`
 }
 
-/** How much daylight there is, 0 (night) to 1 (day): dawn 5:00 to 7:00, dusk 17:30 to 19:30. */
-function daylight(hours: number): number {
-  const ramp = (x: number) => Math.max(0, Math.min(1, x))
-  if (hours < 12) return ramp((hours - 5) / 2)
-  return ramp((19.5 - hours) / 2)
+/**
+ * Today's sunrise and sunset in the city, as minutes past local midnight, from the standard NOAA
+ * approximation (good to a minute or two). The full moon rises as the sun sets and sets as it rises.
+ * In polar night the sun never rises; under the midnight sun it never sets.
+ */
+function sunTimes(epochMs: number, p: Place): { rise: number; set: number } {
+  const d = new Date(epochMs + p.offsetSec * 1000)
+  const doy = Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86_400_000) + 1
+  const g = (2 * Math.PI / 365) * (doy - 1)
+  const eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g))
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g)
+  const rad = Math.PI / 180, lat = p.lat * rad
+  const c = Math.cos(90.833 * rad) / (Math.cos(lat) * Math.cos(decl)) - Math.tan(lat) * Math.tan(decl)
+  if (c >= 1) return { rise: 720, set: 720 }
+  if (c <= -1) return { rise: 0, set: 1440 }
+  const ha = Math.acos(c) / rad
+  const offset = p.offsetSec / 60
+  return { rise: 720 - 4 * (p.lon + ha) - eq + offset, set: 720 - 4 * (p.lon - ha) - eq + offset }
+}
+
+const sunUp = (epochMs: number, p: Place) => {
+  const m = localMinutes(epochMs, p)
+  const { rise, set } = sunTimes(epochMs, p)
+  return m >= rise && m < set
+}
+
+/** The season there now: wet and dry within the tropics, the four seasons beyond them, flipped south of the equator. */
+function season(epochMs: number, p: Place): string {
+  const month = new Date(epochMs + p.offsetSec * 1000).getUTCMonth()
+  const south = p.lat < 0
+  if (Math.abs(p.lat) < 23.5) {
+    const wet = south ? month >= 10 || month <= 3 : month >= 5 && month <= 8
+    return wet ? 'Wet season' : 'Dry season'
+  }
+  const m = south ? (month + 6) % 12 : month
+  return m <= 1 || m === 11 ? 'Winter' : m <= 4 ? 'Spring' : m <= 7 ? 'Summer' : 'Autumn'
+}
+
+type Kind = 'clear' | 'cloudy' | 'overcast' | 'fog' | 'drizzle' | 'rain' | 'snow' | 'storm'
+
+/** WMO weather codes, as Open-Meteo reports them, to a kind of sky and a word for the clock. */
+function describe(code: number): { kind: Kind; label: string } {
+  if (code <= 1) return { kind: 'clear', label: code === 0 ? 'Clear' : 'Mostly clear' }
+  if (code === 2) return { kind: 'cloudy', label: 'Partly cloudy' }
+  if (code === 3) return { kind: 'overcast', label: 'Overcast' }
+  if (code === 45 || code === 48) return { kind: 'fog', label: 'Fog' }
+  if (code >= 51 && code <= 57) return { kind: 'drizzle', label: 'Drizzle' }
+  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return { kind: 'rain', label: code >= 80 ? 'Showers' : 'Rain' }
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return { kind: 'snow', label: 'Snow' }
+  if (code >= 95) return { kind: 'storm', label: 'Thunderstorm' }
+  return { kind: 'cloudy', label: 'Cloudy' }
+}
+
+/** How much daylight there is, 0 (night) to 1 (day): twilight runs 45 minutes either side of sunrise and sunset. */
+function daylight(m: number, rise: number, set: number): number {
+  const ramp = (v: number) => Math.max(0, Math.min(1, v))
+  return m < 720 ? ramp((m - rise + 45) / 90) : ramp((set + 45 - m) / 90)
 }
 
 function mix(a: string, b: string, t: number): string {
@@ -157,25 +213,34 @@ const starsLeft = (s: Sky | null) => Math.round(TOTAL_STARS * (1 - (s?.percent ?
 
 /**
  * Where the sun or moon sits, as percentages of the backdrop, t from 0 (rising) to 1 (setting).
- * The chat runs down the middle and the glass tower stands on the right, so the body rises above
- * the skyline in the open left margin, peaks at noon or midnight, and sinks back.
+ * It comes up from behind the buildings on the left, climbs high over the city and goes down
+ * behind them again just short of the glass tower. Outside 0 to 1 it is below the skyline.
  */
 function arc(t: number): { x: number; y: number } {
-  const lift = Math.sin(Math.PI * t)
-  return { x: 13.8 + 0.6 * lift, y: 42 - 24 * lift }
+  // Climbs quickly off the horizon, so it is seen clearing the rooftops rather than hidden for an hour.
+  const sin = Math.sin(Math.PI * t)
+  const lift = Math.sign(sin) * Math.abs(sin) ** 0.6
+  return { x: 8 + 72 * t, y: 50 - 36 * lift }
 }
 
-export function scene(s: Sky | null, nowMs: number): string {
-  const minutes = istMinutes(nowMs)
-  const hours = minutes / 60
-  const day = daylight(hours)
+export function scene(s: Sky | null, nowMs: number, p: Place = MUMBAI, w: Weather | null = null): string {
+  const minutes = localMinutes(nowMs, p)
+  const { rise, set } = sunTimes(nowMs, p)
+  const sky = w ? describe(w.code) : { kind: 'clear' as Kind, label: '' }
+  const wet = sky.kind === 'rain' || sky.kind === 'drizzle' || sky.kind === 'storm' || sky.kind === 'snow'
+  const cover = w ? w.cloud : 25
+  // How far bad weather drains the colour from the sky, and how much it veils the sun and moon.
+  const grey = sky.kind === 'storm' ? 0.95 : wet || sky.kind === 'overcast' ? 0.85 : sky.kind === 'fog' ? 0.5 : (cover / 100) * 0.3
+  const veiled = sky.kind === 'storm' || wet || sky.kind === 'overcast' ? 0.2 : sky.kind === 'fog' ? 0.45 : 1 - (cover / 100) * 0.4
+  const day = daylight(minutes, rise, set)
   const warmth = Math.max(0, 1 - Math.abs(day - 0.5) * 2)
   const percent = s?.percent ?? 0
 
   // The photo's sky: blue overhead, paling to a grey haze at the horizon.
-  const top = mix('#06103a', '#1668cf', day)
-  const middle = mix(mix('#0d2a6c', '#3f93e6', day), '#d88a6a', warmth * 0.35)
-  const bottom = mix(mix('#2a5ea8', '#a8d2f4', day), '#f0a066', warmth * 0.6)
+  const overcastTone = mix('#161b26', sky.kind === 'storm' ? '#5d6674' : '#8e98a6', day)
+  const top = mix(mix('#06103a', '#1668cf', day), overcastTone, grey)
+  const middle = mix(mix(mix('#0d2a6c', '#3f93e6', day), '#d88a6a', warmth * 0.35), overcastTone, grey)
+  const bottom = mix(mix(mix('#2a5ea8', '#a8d2f4', day), '#f0a066', warmth * 0.6), mix(overcastTone, '#ffffff', 0.15), grey)
 
   const visible = starsLeft(s)
   const keep = new Set(ORDER.slice(0, visible))
@@ -187,9 +252,14 @@ export function scene(s: Sky | null, nowMs: number): string {
   const usedLabel = s && s.used !== null ? `${short(s.used)} used` : 'no tokens yet'
   const leftLabel = left !== null ? `${short(left)} left` : s ? `${short(s.window)} window` : ''
 
-  const isSun = hours >= 6 && hours < 18
-  const t = isSun ? (hours - 6) / 12 : (((hours - 18) + 24) % 24) / 12
-  const { x, y } = arc(t)
+  // The sun runs from sunrise to sunset; the full moon from sunset to the next sunrise. A little either
+  // side of those times each is still drawn, sinking behind the skyline or just coming up from it.
+  const tSun = (minutes - rise) / (set - rise)
+  const nightLength = 1440 - (set - rise)
+  const sinceSet = (minutes - set + 1440) % 1440
+  const tMoon = (sinceSet > nightLength + 30 ? sinceSet - 1440 : sinceSet) / nightLength
+  const showSun = tSun > -0.06 && tSun < 1.06
+  const showMoon = tMoon > -0.06 && tMoon < 1.06
   // Night: a full blue-white moon with soft grey seas and a wide glow. Day: a white-hot sun with a
   // starburst of rays and a string of lens flares, as a camera sees it.
   const sea = (cx: number, cy: number, rx: number, ry: number, o: number) =>
@@ -201,24 +271,35 @@ export function scene(s: Sky | null, nowMs: number): string {
     const p = (ang: number, r: number) => `${(Math.cos(ang) * r).toFixed(1)} ${(Math.sin(ang) * r).toFixed(1)}`
     return `M${p(a - w * 4, 20)}L${p(a, len)}L${p(a + w * 4, 20)}Z`
   }).join('')
-  const body = isSun
-    ? `<circle r="290" fill="url(#glare)"/><path d="${rays}" fill="url(#ray)"/><circle r="74" fill="url(#core)"/><circle r="30" fill="#ffffff"/>
+  const sunBody = `<circle r="290" fill="url(#glare)"/><path d="${rays}" fill="url(#ray)"/><circle r="74" fill="url(#core)"/><circle r="30" fill="#ffffff"/>
 <circle cx="-62" cy="-118" r="20" fill="#ffc46b" opacity="0.4"/><circle cx="-30" cy="-190" r="24" fill="#b9a4f0" opacity="0.22"/><circle cx="2" cy="-150" r="12" fill="#ffd9a0" opacity="0.3"/>
 <circle cx="50" cy="96" r="26" fill="#bfe0ff" opacity="0.2"/><circle cx="-34" cy="66" r="15" fill="#ffe6b0" opacity="0.25"/><circle cx="104" cy="200" r="38" fill="#cfe6ff" opacity="0.12" stroke="#ffffff" stroke-opacity="0.25" stroke-width="2"/>`
-    : `<circle class="halo" r="290" fill="url(#halo)"/><circle r="124" fill="#cfe4fb" opacity="0.5"/><circle r="118" fill="url(#moon)"/>
+  const moonBody = `<circle class="halo" r="290" fill="url(#halo)"/><circle r="124" fill="#cfe4fb" opacity="0.5"/><circle r="118" fill="url(#moon)"/>
 ${sea(-34, -52, 46, 34, 0.75)}${sea(22, -66, 34, 24, 0.6)}${sea(38, -22, 40, 30, 0.7)}${sea(-62, -6, 30, 40, 0.6)}${sea(-20, 6, 34, 22, 0.45)}${sea(60, 22, 24, 30, 0.45)}${sea(-40, 60, 30, 20, 0.35)}${sea(12, 44, 20, 14, 0.3)}
 <circle cx="-22" cy="84" r="7" fill="#ffffff" opacity="0.8"/><circle cx="-22" cy="84" r="20" fill="url(#bright)"/><circle cx="-84" cy="-34" r="5" fill="#ffffff" opacity="0.7"/><circle cx="52" cy="70" r="16" fill="url(#bright)"/><circle cx="-70" cy="44" r="18" fill="url(#bright)"/>
 <circle r="118" fill="url(#limb)"/>`
+
+  // Drawn before the city, so the buildings hide the sun and moon as they rise and set.
+  const place = (t: number, art: string) => {
+    const { x, y } = arc(t)
+    return `<svg x="${(x - 11.25).toFixed(2)}" y="${(y - 18).toFixed(2)}" width="22.5" height="36" viewBox="-300 -300 600 600" preserveAspectRatio="none">${art}</svg>`
+  }
 
   // Clouds: heaps of soft puffs. The low ones stay through the night, lit blue by the moon; the high ones come with the day.
   const puffs: [number, number, number, number][] = [[-0.38, 0.08, 0.3, 0.19], [-0.16, -0.08, 0.33, 0.25], [0.1, -0.13, 0.36, 0.28], [0.36, 0.05, 0.3, 0.2], [0, 0.13, 0.52, 0.16]]
   const cloud = (cx: number, cy: number, w: number, o: number) => `<g opacity="${o.toFixed(2)}"><ellipse cx="${cx}" cy="${cy + w * 0.2}" rx="${w * 0.5}" ry="${w * 0.1}" fill="url(#shade)"/>${puffs.map(([dx, dy, rx, ry]) =>
     `<ellipse cx="${(cx + dx * w).toFixed(0)}" cy="${(cy + dy * w).toFixed(0)}" rx="${(rx * w).toFixed(0)}" ry="${(ry * w).toFixed(0)}" fill="url(#puff)"/>`).join('')}</g>`
+  // More cloud the more the sky is covered: a low bank always, a high layer from a quarter cover,
+  // and under overcast or rain a heavy deck across the whole sky.
   const low = 0.7 + day * 0.25
+  const high = Math.max(day, 0.55) * Math.min(1, cover / 30)
+  const deck = cover >= 85 || wet || sky.kind === 'overcast'
+    ? [[160, 80, 420], [560, 40, 480], [980, 90, 440], [1400, 50, 460], [360, 230, 400], [800, 200, 460], [1250, 220, 420]].map(([cx, cy, sz]) => cloud(cx ?? 0, cy ?? 0, sz ?? 0, 0.95)).join('')
+    : ''
   const clouds = cloud(250, 520, 330, low) + cloud(640, 560, 420, low) + cloud(1050, 530, 360, low) + cloud(1420, 560, 380, low) + cloud(860, 585, 300, low)
-    + (day > 0.05 ? cloud(520, 330, 230, day * 0.95) + cloud(1180, 250, 260, day * 0.95) + cloud(1480, 120, 200, day * 0.9) + cloud(820, 110, 170, day * 0.85) + cloud(90, 300, 200, day * 0.9) : '')
-  const puffTone = mix('#a9c8ee', '#ffffff', day)
-  const shadeTone = mix('#3a5f9c', '#9fb8d4', day)
+    + deck + (cover >= 25 ? cloud(520, 330, 230, high) + cloud(1180, 250, 260, high) + cloud(1480, 120, 200, high) + cloud(820, 110, 170, high) + cloud(90, 300, 200, high) : '')
+  const puffTone = mix(mix('#a9c8ee', '#ffffff', day), mix('#2c323d', wet ? '#8a939f' : '#b3bac4', day), grey * 0.9)
+  const shadeTone = mix(mix('#3a5f9c', '#9fb8d4', day), mix('#20252f', '#6b7480', day), grey * 0.9)
 
   const SANS = "'Avenir Next', Avenir, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', sans-serif"
   const SERIF = "Didot, 'Bodoni 72', 'Bodoni MT', 'Playfair Display', Georgia, serif"
@@ -242,8 +323,28 @@ ${floorRects}
 <text x="75" y="1126" text-anchor="middle" font-family="${SANS}" font-size="14" letter-spacing="3" fill="#ffffff" fill-opacity="0.7">${visible} STARS</text>
 <text x="75" y="1166" text-anchor="middle" font-family="${SANS}" font-size="13" letter-spacing="3" fill="#ffffff" fill-opacity="0.7">${short(s?.window ?? 0)} WINDOW</text>`
 
-  const time = istLabel(nowMs)
-  const strip = left !== null && s && s.used !== null ? `${short(s.used)} used · ${short(left)} left` : `${short(s?.window ?? 0)} window`
+  // Rain falls in thin slanted streaks, snow in slow flakes; a storm adds a far-off flash now and then.
+  let seed = 7
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296 }
+  const drops = sky.kind === 'snow'
+    ? Array.from({ length: 110 }, () => `M${Math.round(rnd() * 1000)} ${Math.round(rnd() * 1000)}h0`).join('')
+    : wet
+      ? Array.from({ length: sky.kind === 'drizzle' ? 60 : 110 }, () => {
+        const x0 = Math.round(rnd() * 1060), y0 = Math.round(rnd() * 1000), len = sky.kind === 'drizzle' ? 14 : 26 + Math.round(rnd() * 18)
+        return `M${x0} ${y0}l${-Math.round(len * 0.25)} ${len}`
+      }).join('')
+      : ''
+  const fall = sky.kind === 'snow'
+    ? `<g class="fall slow" stroke="#ffffff" stroke-width="5" stroke-linecap="round" opacity="0.8"><path d="${drops}"/><path d="${drops}" transform="translate(0 -1000)"/></g>`
+    : wet
+      ? `<g class="fall" stroke="#dfe8f5" stroke-width="1.4" stroke-linecap="round" opacity="${sky.kind === 'drizzle' ? 0.35 : 0.5}"><path d="${drops}"/><path d="${drops}" transform="translate(0 -1000)"/></g>`
+      : ''
+  const weatherLayer = (fall ? `<svg x="0" y="0" width="100" height="100" viewBox="0 0 1000 1000" preserveAspectRatio="none">${fall}</svg>` : '')
+    + (sky.kind === 'storm' ? '<rect class="flash" width="100" height="100" fill="#e8eeff" opacity="0"/>' : '')
+    + (sky.kind === 'fog' ? `<rect width="100" height="100" fill="${mix('#3a4150', '#d9dee4', day)}" opacity="0.45"/>` : '')
+
+  const time = clockLabel(nowMs, p)
+  const strip = w ? `${Math.round(w.temp)}°C · ${sky.label} · ${season(nowMs, p)}` : season(nowMs, p)
   const night = (1 - day) * 0.6
 
   // The root maps its units to percentages of the backdrop; each nested drawing keeps its own shape.
@@ -252,7 +353,11 @@ ${floorRects}
 .stars circle { fill: #f4f1e8; }
 .halo { animation: breathe 10s ease-in-out infinite alternate; }
 @keyframes breathe { from { opacity: 0.6; } to { opacity: 0.9; } }
-.led { animation: led 6s ease-in-out infinite alternate; }
+.fall { animation: fall 1.1s linear infinite; }
+.fall.slow { animation-duration: 14s; }
+@keyframes fall { from { transform: translateY(0); } to { transform: translateY(1000px); } }
+.flash { animation: flash 11s linear infinite; }
+@keyframes flash { 0%, 91%, 93.5%, 100% { opacity: 0; } 92% { opacity: 0.35; } 93% { opacity: 0.08; } }
 
 @keyframes led { from { opacity: 0.85; } to { opacity: 1; } }
 </style>
@@ -306,33 +411,67 @@ ${floorRects}
 <rect width="100" height="100" fill="url(#sky)"/>
 <svg x="0" y="0" width="84" height="38" viewBox="0 0 1400 600" preserveAspectRatio="xMidYMid slice"><g class="stars" opacity="${(1 - day).toFixed(2)}">${lit}</g></svg>
 <svg x="0" y="0" width="100" height="62" viewBox="0 0 1600 640" preserveAspectRatio="xMidYMax slice">${clouds}</svg>
+<g opacity="${veiled.toFixed(2)}">${showMoon ? place(tMoon, moonBody) : ''}${showSun ? place(tSun, sunBody) : ''}</g>
 <svg x="0" y="0" width="100" height="100" viewBox="0 0 ${PHOTO_WIDTH} ${PHOTO_HEIGHT}" preserveAspectRatio="xMidYMax slice">${PHOTO_PATHS}
 <rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="url(#dark)" opacity="${night.toFixed(2)}"/><path d="M477 0H560V504H486Z" fill="#0a0f26" opacity="${night.toFixed(2)}"/>
 <rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="#f09a5c" opacity="${(warmth * 0.16).toFixed(2)}"/>
+<rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="${mix('#1c2029', '#7d8590', day)}" opacity="${(Math.max(0, grey - 0.4) * 0.6).toFixed(2)}"/>
 <rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="url(#cityglow)" opacity="${((1 - day) * 0.55).toFixed(2)}"/>
 </svg>
 <rect x="0" y="0" width="22" height="100" fill="url(#pane)"/>
-<svg x="${(x - 11.25).toFixed(2)}" y="${(y - 18).toFixed(2)}" width="22.5" height="36" viewBox="-300 -300 600 600" preserveAspectRatio="none">${body}</svg>
+${weatherLayer}
 <svg x="88.25" y="17" width="9.5" height="82" viewBox="0 0 150 1200" preserveAspectRatio="xMidYMax meet">${gauge}</svg>
 <svg x="86.6" y="3" width="12.8" height="11" viewBox="0 0 300 200" preserveAspectRatio="xMidYMin meet">
 <rect x="0" y="0" width="300" height="200" rx="20" fill="url(#veil)"/>
-<text x="150" y="50" text-anchor="middle" font-family="${SANS}" font-size="16" font-weight="500" letter-spacing="8" fill="#ffffff" fill-opacity="0.8">MUMBAI · IST</text>
-<text x="150" y="118" text-anchor="middle" font-family="${SERIF}" font-size="60" fill="#ffffff">${time.replace(' IST', '')}</text>
+<text x="150" y="50" text-anchor="middle" font-family="${SANS}" font-size="16" font-weight="500" letter-spacing="8" fill="#ffffff" fill-opacity="0.8">${p.name.toUpperCase()} · ${p.tz}</text>
+<text x="150" y="118" text-anchor="middle" font-family="${SERIF}" font-size="60" fill="#ffffff">${time}</text>
 <text x="150" y="162" text-anchor="middle" font-family="${SANS}" font-size="17" letter-spacing="1" fill="#ffffff" fill-opacity="0.85">${strip}</text>
 </svg>
 </svg>`
 }
 
-function statusLine(s: Sky | null, nowMs: number): string {
-  const time = istLabel(nowMs)
-  if (!s) return `🕰 ${time}`
-  const icon = (() => { const h = istMinutes(nowMs) / 60; return h >= 6 && h < 18 ? '☀️' : '🌙' })()
-  if (s.used === null) return `🕰 ${time} · ${icon} ${short(s.window)} context · ✨ ${starsLeft(s)} stars`
-  return `🕰 ${time} · ${icon} ${short(s.used)} used · ${short(Math.max(0, s.window - s.used))} left · ✨ ${starsLeft(s)} stars`
+function statusLine(s: Sky | null, nowMs: number, p: Place, w: Weather | null): string {
+  const time = `${clockLabel(nowMs, p)} ${p.tz}`
+  const icon = sunUp(nowMs, p) ? '☀️' : '🌙'
+  const weather = w ? ` · ${Math.round(w.temp)}°C ${describe(w.code).label.toLowerCase()}` : ''
+  if (!s) return `🕰 ${time}${weather}`
+  if (s.used === null) return `🕰 ${time}${weather} · ${icon} ${short(s.window)} context · ✨ ${starsLeft(s)} stars`
+  return `🕰 ${time}${weather} · ${icon} ${short(s.used)} used · ${short(Math.max(0, s.window - s.used))} left · ✨ ${starsLeft(s)} stars`
 }
 
+/** Shows the clock, the weather and the context figures in the status line. */
+async function status($: EngineInterface): Promise<void> {
+  $.ui.status(statusLine(await read($, sky), (await read($, clock)) ?? (await $.clock.now()), (await read($, where)) ?? MUMBAI, await read($, conditions)))
+}
 
-export const register: Register = on => {
+/** Finds the city by name ("Paris" or "Paris, France") with Open-Meteo's free geocoder; null if not found. */
+async function findCity($: EngineInterface, query: string): Promise<{ name: string; lat: number; lon: number } | null> {
+  const [name = '', ...rest] = query.split(',').map(part => part.trim())
+  const hint = rest.join(' ').toLowerCase()
+  const r = await $.http.fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=10&language=en&format=json`)
+  if (!r.ok) return null
+  const found = (JSON.parse(r.text) as { results?: { name: string; latitude: number; longitude: number; country?: string; country_code?: string; admin1?: string }[] }).results ?? []
+  const pick = (hint ? found.find(c => [c.country, c.country_code, c.admin1].some(v => v && (v.toLowerCase() === hint || v.toLowerCase().startsWith(hint)))) : undefined) ?? found[0]
+  return pick ? { name: pick.name, lat: pick.latitude, lon: pick.longitude } : null
+}
+
+/** The city's current weather, UTC offset and zone abbreviation from Open-Meteo's free forecast. */
+async function readWeather($: EngineInterface, city: { name: string; lat: number; lon: number }, nowMs: number): Promise<{ place: Place; weather: Weather } | null> {
+  const r = await $.http.fetch(`https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,weather_code,cloud_cover&timezone=auto&forecast_days=1`)
+  if (!r.ok) return null
+  const j = JSON.parse(r.text) as { utc_offset_seconds?: number; timezone_abbreviation?: string; current?: { temperature_2m?: number; weather_code?: number; cloud_cover?: number } }
+  if (!j.current || j.utc_offset_seconds === undefined) return null
+  const off = j.utc_offset_seconds
+  const tz = j.timezone_abbreviation && !/^GMT[+-]/.test(j.timezone_abbreviation) ? j.timezone_abbreviation : `UTC${off >= 0 ? '+' : '-'}${Math.floor(Math.abs(off) / 3600)}${Math.abs(off) % 3600 ? `:${String(Math.abs(off) % 3600 / 60).padStart(2, '0')}` : ''}`
+  return {
+    place: { name: city.name, lat: city.lat, lon: city.lon, offsetSec: off, tz },
+    weather: { code: j.current.weather_code ?? 0, temp: j.current.temperature_2m ?? 0, cloud: j.current.cloud_cover ?? 0, at: nowMs },
+  }
+}
+
+export const register: Register = (on, options) => {
+  const wanted = (typeof options.city === 'string' ? options.city : '').trim() || 'Mumbai'
+
   on('session.start', async ($, e, next) => {
     const unpainted = problems.find(line => line.startsWith("Desktop won't paint"))
     if (unpainted !== undefined) $.ui.toast(unpainted)
@@ -348,14 +487,36 @@ export const register: Register = on => {
     const measured = toSky(context)
     await update($, sky, () => measured)
     await update($, clock, () => now)
-    $.ui.status(statusLine(measured, now))
+    await status($)
+
+    // Look the city up once, then read its weather now and every twenty minutes. Offline, or for a
+    // name the geocoder doesn't know, the sky stays on Mumbai with fair weather.
+    let city: { name: string; lat: number; lon: number } | null = null
+    const refresh = async () => {
+      try {
+        city ??= await findCity($, wanted)
+        if (!city) {
+          $.ui.log(`day-at-office: no city called "${wanted}" found; following Mumbai`)
+          return
+        }
+        const got = await readWeather($, city, await $.clock.now())
+        if (!got) return
+        await update($, where, () => got.place)
+        await update($, conditions, () => got.weather)
+        await status($)
+      } catch (error) {
+        $.ui.log(`day-at-office: weather not available (${String(error)})`)
+      }
+    }
+    void refresh()
+    $.clock.every(20 * 60_000, () => { void refresh() })
 
     // Move the clock, the sun and the moon along every half minute.
     $.clock.every(30_000, () => {
       void (async () => {
         const t = await $.clock.now()
         await update($, clock, () => t)
-        $.ui.status(statusLine(await read($, sky), t))
+        await status($)
       })()
     })
 
@@ -365,7 +526,7 @@ export const register: Register = on => {
   on('session.measure', async ($, e, next) => {
     const measured = toSky(e.context)
     await update($, sky, () => measured)
-    $.ui.status(statusLine(measured, (await read($, clock)) ?? (await $.clock.now())))
+    await status($)
 
     return next(e)
   })
@@ -378,11 +539,13 @@ export const register: Register = on => {
     const { Svg } = $.ui.resolve(e)
     const s = await read($, sky)
     const now = (await read($, clock)) ?? (await $.clock.now())
-    const body = istMinutes(now) / 60 >= 6 && istMinutes(now) / 60 < 18 ? 'sun' : 'moon'
+    const p = (await read($, where)) ?? MUMBAI
+    const w = await read($, conditions)
+    const told = `${clockLabel(now, p)} in ${p.name}${w ? `, ${describe(w.code).label.toLowerCase()} and ${Math.round(w.temp)}°C` : ''}`
     const alt = s && s.used !== null
-      ? `A Mumbai skyline seen from an office window at ${istLabel(now)}. A gauge on the right reads ${short(s.used)} tokens used and ${short(Math.max(0, s.window - s.used))} left; ${starsLeft(s)} of ${TOTAL_STARS} stars remain.`
-      : `A Mumbai skyline seen from an office window at ${istLabel(now)}, with a gauge on the right showing the context window.`
+      ? `A Mumbai skyline seen from an office window, the sky set to ${told}. A gauge on the right reads ${short(s.used)} tokens used and ${short(Math.max(0, s.window - s.used))} left; ${starsLeft(s)} of ${TOTAL_STARS} stars remain.`
+      : `A Mumbai skyline seen from an office window, the sky set to ${told}, with a gauge on the right showing the context window.`
 
-    return <Svg source={scene(s, now)} alt={alt} isInteractive />
+    return <Svg source={scene(s, now, p, w)} alt={alt} isInteractive />
   })
 }

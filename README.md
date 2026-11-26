@@ -4,12 +4,14 @@ Themes for Claude Code, packaged as mods.
 
 ## Day at office (`day-at-office`)
 
-A backdrop for the Claude desktop and phone apps: Mumbai seen from a high office window, following the time of day in India (IST). The city is a vector tracing of a photograph of that view (a theme backdrop takes drawings, not pictures), so it keeps the photo's real colours, buildings, metro line and glass reflections.
+A backdrop for the Claude desktop and phone apps: Mumbai seen from a high office window, following the time of day and live weather of a city you choose (Mumbai by default). The city is a vector tracing of a photograph of that view (a theme backdrop takes drawings, not pictures), so it keeps the photo's real colours, buildings, metro line and glass reflections.
 
-- **Clock:** the time in IST with AM or PM in a serif face at the top of the glass tower, over a translucent shade, with tokens used and left beneath it.
+- **Clock:** the city's local time with AM or PM in a serif face at the top of the glass tower, over a translucent shade, with tokens used and left beneath it.
 - **Day and night:** a blue haze by day, warm dawn and dusk, and at night a darker city with a faint warm glow at the horizon. Nothing in the scene flickers.
 - **Context gauge:** a vertical bar on the glass tower on the right, under the clock, drawn as twenty floors that light up from the ground as the context window fills, with the percentage beside it and tokens used, tokens left and stars remaining beneath. It turns orange past 65% used and red past 85%.
-- **Sun and moon:** from 6 AM to 6 PM IST a white sun with a starburst of rays and lens flares crosses a blue sky of clouds; from 6 PM to 6 AM a full blue-white moon is up in a deep blue night. Each rises above the skyline beside the gauge and sinks back. They are round at a typical laptop window shape and slightly oval on very wide or tall windows, because the backdrop stretches with the window.
+- **Sun and moon:** the sun rises from behind the buildings on the left at the city's real sunrise, crosses the sky and sets behind them on the right at sunset; the full moon then rises on the left and sets at dawn. Times are worked out for the chosen city and date.
+- **Live weather and season:** the sky shows the chosen city's current weather from [Open-Meteo](https://open-meteo.com) (free, no key), refreshed every 20 minutes: clear, partly cloudy, overcast, fog, drizzle, rain, snow or thunderstorm. The clock panel shows the temperature, conditions and season (wet or dry in the tropics, the four seasons elsewhere, flipped south of the equator).
+- **Choose a city:** open `/config` and set **day-at-office › City**, such as `London` or `Paris, France`. The clock, sunrise, sunset, season and weather follow it; the skyline stays the Mumbai office view. Offline, or for a name that isn't found, it follows Mumbai with fair weather.
 - **Stars:** 160 with an empty context window, going out one by one as it fills.
 - **Message cards:** Claude's replies sit on midnight-blue invitation cards with a gold hairline frame and corner sparkles; your messages on golden tickets with cut corners, tilted a touch. App versions that don't support styled messages get a frosted column instead.
 

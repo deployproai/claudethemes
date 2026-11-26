@@ -1,1 +1,14 @@
-{"name": "day-at-office", "version": "0.10.0", "description": "The view of Mumbai from a high office window, traced from a photograph, following the time of day in IST: a gauge on the right shows context and tokens used, and stars thin out as the window fills.", "types": "./types/index.d.ts"}
+{
+  "name": "day-at-office",
+  "version": "0.11.0",
+  "description": "The view of Mumbai from a high office window, traced from a photograph, under the live sky of a city you choose: real sunrise and sunset, current weather and season, and a gauge on the right showing context and tokens used.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "city": {
+      "type": "string",
+      "title": "City",
+      "description": "The city whose time, sunrise and sunset, season and live weather the sky follows, such as \"London\" or \"Paris, France\". Weather comes from Open-Meteo. The skyline stays the Mumbai view.",
+      "default": "Mumbai"
+    }
+  }
+}
