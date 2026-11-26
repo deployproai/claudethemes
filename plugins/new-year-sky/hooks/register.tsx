@@ -150,44 +150,10 @@ function makeStars(): { x: number; y: number; r: number; dur: number; delay: num
 }
 const STARS = makeStars()
 
-/** Twinkle timing by class, so each star's markup stays short. */
-const TWINKLE = Array.from({ length: 12 }, (_, k) =>
-  `.t${k} { animation-duration: ${(4 + (k % 4) * 1.4).toFixed(1)}s; animation-delay: -${(k * 0.5).toFixed(1)}s; }`).join('\n')
-
-/** Lit windows and street lights across the city in the traced photo, as one path of tiny squares. */
-const CITY_LIGHTS = (() => {
-  let seed = 9031
-  const rand = () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296
-    return seed / 4294967296
-  }
-  return Array.from({ length: 260 }, () => {
-    const x = Math.round(rand() * 450)
-    const y = Math.round(210 + rand() * 265)
-    return `M${x} ${y}h2v2h-2z`
-  }).join('')
-})()
-
 /** Stars go out from the faintest first, so the bright ones are the last to leave. */
 const ORDER = STARS.map((s, i) => ({ i, weight: s.r * s.base })).sort((a, b) => b.weight - a.weight).map(s => s.i)
 
 const starsLeft = (s: Sky | null) => Math.round(TOTAL_STARS * (1 - (s?.percent ?? 0) / 100))
-
-/** A firework burst in a 1600 x 1000 box; night only, and it rests faintly visible when motion is reduced. */
-function burst(cx: number, cy: number, r: number, color: string, delay: number): string {
-  const rays = Array.from({ length: 18 }, (_, k) => {
-    const a = (k / 18) * Math.PI * 2
-    const x1 = (cx + Math.cos(a) * r * 0.25).toFixed(1), y1 = (cy + Math.sin(a) * r * 0.25).toFixed(1)
-    const x2 = (cx + Math.cos(a) * r).toFixed(1), y2 = (cy + Math.sin(a) * r).toFixed(1)
-    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><circle cx="${x2}" cy="${y2}" r="2"/>`
-  }).join('')
-  return `<g class="fw" opacity="0.25" stroke="${color}" fill="${color}" stroke-width="1.4" stroke-linecap="round" style="animation-delay:${delay}s">${rays}</g>`
-}
-const FIREWORKS = [
-  burst(620, 330, 90, '#ffd9a0', 0.5),
-  burst(1050, 260, 80, '#ffb3b3', 4.4),
-  burst(820, 420, 60, '#fff1c9', 8.6),
-].join('')
 
 /**
  * Where the sun or moon sits, as percentages of the backdrop, t from 0 (rising) to 1 (setting).
@@ -214,7 +180,7 @@ export function scene(s: Sky | null, nowMs: number): string {
   const visible = starsLeft(s)
   const keep = new Set(ORDER.slice(0, visible))
   const lit = STARS.map((st, i) => keep.has(i)
-    ? `<circle cx="${st.x}" cy="${st.y}" r="${st.r}" opacity="${st.base}" class="t${i % 12}"/>`
+    ? `<circle cx="${st.x}" cy="${st.y}" r="${(st.r * 0.8).toFixed(2)}" opacity="${(st.base * 0.85).toFixed(2)}"/>`
     : '').join('')
 
   const left = s && s.used !== null ? Math.max(0, s.window - s.used) : null
@@ -244,16 +210,11 @@ export function scene(s: Sky | null, nowMs: number): string {
   // The root maps its units to percentages of the backdrop; each nested drawing keeps its own shape.
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none">
 <style>
-.stars circle { fill: #fff7e0; animation-name: twinkle; animation-iteration-count: infinite; animation-timing-function: ease-in-out; animation-direction: alternate; }
-@keyframes twinkle { from { opacity: 0.3; } to { opacity: 0.95; } }
-${TWINKLE}
-.fw { transform-box: fill-box; transform-origin: center; animation: burst 16s ease-out infinite; }
-@keyframes burst { 0% { transform: scale(0.2); opacity: 0; } 3% { opacity: 0.7; } 20% { transform: scale(1); opacity: 0; } 100% { transform: scale(1); opacity: 0; } }
+.stars circle { fill: #f4f1e8; }
 .halo { animation: breathe 10s ease-in-out infinite alternate; }
 @keyframes breathe { from { opacity: 0.6; } to { opacity: 0.9; } }
 .led { animation: led 6s ease-in-out infinite alternate; }
-.lights { animation: hum 7s ease-in-out infinite alternate; }
-@keyframes hum { from { fill-opacity: 0.75; } to { fill-opacity: 1; } }
+
 @keyframes led { from { opacity: 0.85; } to { opacity: 1; } }
 </style>
 <defs>
@@ -262,6 +223,9 @@ ${TWINKLE}
 </linearGradient>
 <linearGradient id="pane" x1="0" y1="0" x2="1" y2="0">
 <stop offset="0" stop-color="#173c44" stop-opacity="${(0.25 + day * 0.4).toFixed(2)}"/><stop offset="1" stop-color="#173c44" stop-opacity="0"/>
+</linearGradient>
+<linearGradient id="cityglow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0.3" stop-color="#ff9e4a" stop-opacity="0"/><stop offset="0.5" stop-color="#ff9e4a" stop-opacity="0.35"/><stop offset="1" stop-color="#ffb870" stop-opacity="0.15"/>
 </linearGradient>
 <radialGradient id="glare" cx="0.5" cy="0.5" r="0.5">
 <stop offset="0.2" stop-color="#fff6d8" stop-opacity="0.9"/><stop offset="0.55" stop-color="#ffe9b0" stop-opacity="0.3"/><stop offset="1" stop-color="#ffe9b0" stop-opacity="0"/>
@@ -274,12 +238,11 @@ ${TWINKLE}
 </radialGradient>
 </defs>
 <rect width="100" height="100" fill="url(#sky)"/>
-<svg x="0" y="0" width="84" height="45" viewBox="0 0 1400 600" preserveAspectRatio="xMidYMid slice"><g class="stars" opacity="${(1 - day).toFixed(2)}">${lit}</g></svg>
-${day < 0.5 ? `<svg x="0" y="0" width="84" height="55" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice"><g opacity="${(1 - day * 2).toFixed(2)}">${FIREWORKS}</g></svg>` : ''}
+<svg x="0" y="0" width="84" height="38" viewBox="0 0 1400 600" preserveAspectRatio="xMidYMid slice"><g class="stars" opacity="${(1 - day).toFixed(2)}">${lit}</g></svg>
 <svg x="0" y="0" width="100" height="100" viewBox="0 0 ${PHOTO_WIDTH} ${PHOTO_HEIGHT}" preserveAspectRatio="xMidYMax slice">${PHOTO_PATHS}
 <rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="#0a0f26" opacity="${night.toFixed(2)}"/>
 <rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="#f09a5c" opacity="${(warmth * 0.16).toFixed(2)}"/>
-${day < 0.7 ? `<path class="lights" d="${CITY_LIGHTS}" fill="#ffcf7a" opacity="${Math.min(1, (0.7 - day) * 2).toFixed(2)}"/>` : ''}
+<rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="url(#cityglow)" opacity="${((1 - day) * 0.55).toFixed(2)}"/>
 </svg>
 <rect x="0" y="0" width="22" height="100" fill="url(#pane)"/>
 <svg x="${(x - 8).toFixed(2)}" y="${(y - 11.5).toFixed(2)}" width="16" height="23" viewBox="-160 -160 320 320" preserveAspectRatio="xMidYMid meet">${body}</svg>
