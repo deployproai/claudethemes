@@ -5,19 +5,19 @@ import { makeColors } from './make-colors.js'
 import { PHOTO_HEIGHT, PHOTO_PATHS, PHOTO_WIDTH } from './photo'
 import type { Sky } from '../types'
 
-// A New Year sky that follows the time of day in India (IST). By night the
+// An office-window sky that follows the time of day in India (IST). By night the
 // moon is up and the stars go out one by one as the context window fills; by
-// day the sun crosses a blue sky of clouds. A gauge on the left carries the
+// day the sun crosses a blue sky of clouds. A gauge on the right carries the
 // token figures, and a clock at the top shows the time in IST.
 
-const SCENE = 'new-year-sky'
+const SCENE = 'day-at-office'
 const TOTAL_STARS = 160
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
-const sky = atom({ plugin: 'new-year-sky', key: 'sky' } as const, null)
-const clock = atom({ plugin: 'new-year-sky', key: 'now' } as const, null)
+const sky = atom({ plugin: 'day-at-office', key: 'sky' } as const, null)
+const clock = atom({ plugin: 'day-at-office', key: 'now' } as const, null)
 
 const { theme, problems } = makeColors({
-  label: 'New Year night',
+  label: 'Day at office',
   only: 'dark',
   roles: { accent: '#e6b84a', danger: '#e5604f', success: '#5fbf8a', warning: '#e8a33d', pro: '#a98be8' },
   dark: {
@@ -310,19 +310,12 @@ ${floorRects}
 </svg>
 <rect x="0" y="0" width="22" height="100" fill="url(#pane)"/>
 <svg x="${(x - 11.25).toFixed(2)}" y="${(y - 18).toFixed(2)}" width="22.5" height="36" viewBox="-300 -300 600 600" preserveAspectRatio="none">${body}</svg>
-<svg x="1" y="13" width="7.5" height="74" viewBox="0 0 150 1200" preserveAspectRatio="xMinYMid meet">${gauge}</svg>
+<svg x="89.25" y="17" width="7.5" height="76" viewBox="0 0 150 1200" preserveAspectRatio="xMidYMin meet">${gauge}</svg>
 <svg x="86.6" y="3" width="12.8" height="11" viewBox="0 0 300 200" preserveAspectRatio="xMidYMin meet">
 <rect x="4" y="4" width="292" height="192" rx="8" fill="#070b16" fill-opacity="0.92" stroke="#3a4a63" stroke-width="3"/>
 <text x="150" y="58" text-anchor="middle" font-family="ui-monospace, monospace" font-size="20" letter-spacing="6" fill="#7f8fa8">IST</text>
 <text class="led" x="150" y="118" text-anchor="middle" font-family="ui-monospace, monospace" font-weight="700" font-size="50" fill="#ffb347">${time.replace(' IST', '')}</text>
 <text x="150" y="164" text-anchor="middle" font-family="ui-monospace, monospace" font-size="18" fill="#c6cbe4">${strip}</text>
-</svg>
-<svg x="86.6" y="30" width="12.8" height="18" viewBox="0 0 300 420" preserveAspectRatio="xMidYMid meet">
-<rect x="4" y="4" width="292" height="412" rx="8" fill="#070b16" fill-opacity="0.92" stroke="#3a4a63" stroke-width="3"/>
-<text class="led" x="150" y="110" text-anchor="middle" font-family="ui-serif, serif" font-style="italic" font-weight="700" font-size="56" fill="#ffd166">Happy</text>
-<text class="led" x="150" y="190" text-anchor="middle" font-family="ui-serif, serif" font-style="italic" font-weight="700" font-size="56" fill="#ffd166">New Year</text>
-<text class="led" x="150" y="300" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-weight="800" font-size="84" fill="#ffffff">2027</text>
-<text x="150" y="370" text-anchor="middle" font-family="ui-monospace, monospace" font-size="20" letter-spacing="5" fill="#7f8fa8">MUMBAI</text>
 </svg>
 </svg>`
 }
@@ -344,7 +337,7 @@ export const register: Register = on => {
     try {
       await $.theme.set(LOOK)
     } catch (error) {
-      $.ui.log(`new-year-sky: message cards not supported here, using a frosted column (${String(error)})`)
+      $.ui.log(`day-at-office: message cards not supported here, using a frosted column (${String(error)})`)
       await $.theme.set(FALLBACK)
     }
 
@@ -384,8 +377,8 @@ export const register: Register = on => {
     const now = (await read($, clock)) ?? (await $.clock.now())
     const body = istMinutes(now) / 60 >= 6 && istMinutes(now) / 60 < 18 ? 'sun' : 'moon'
     const alt = s && s.used !== null
-      ? `A Mumbai skyline seen from an office window at ${istLabel(now)}. A gauge on the left reads ${short(s.used)} tokens used and ${short(Math.max(0, s.window - s.used))} left; ${starsLeft(s)} of ${TOTAL_STARS} stars remain.`
-      : `A Mumbai skyline seen from an office window at ${istLabel(now)}, with a gauge on the left showing the context window.`
+      ? `A Mumbai skyline seen from an office window at ${istLabel(now)}. A gauge on the right reads ${short(s.used)} tokens used and ${short(Math.max(0, s.window - s.used))} left; ${starsLeft(s)} of ${TOTAL_STARS} stars remain.`
+      : `A Mumbai skyline seen from an office window at ${istLabel(now)}, with a gauge on the right showing the context window.`
 
     return <Svg source={scene(s, now)} alt={alt} isInteractive />
   })

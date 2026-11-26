@@ -5,9 +5,9 @@
   },
   "plugins": [
     {
-      "name": "new-year-sky",
-      "source": "./plugins/new-year-sky",
-      "description": "A New Year view of Mumbai from a high office window, traced from a photograph, following the time of day in IST: a gauge on the left shows context and tokens used, and stars thin out as the window fills."
+      "name": "day-at-office",
+      "source": "./plugins/day-at-office",
+      "description": "The view of Mumbai from a high office window, traced from a photograph, following the time of day in IST: a gauge on the right shows context and tokens used, and stars thin out as the window fills."
     }
   ],
   "description": "Themes for Claude Code, packaged as mods."

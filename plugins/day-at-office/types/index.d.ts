@@ -3,6 +3,6 @@ export type Sky = { used: number | null; window: number; percent: number }
 
 declare module 'claude-code' {
   interface PluginState {
-    'new-year-sky': { sky: Sky | null; now: number | null }
+    'day-at-office': { sky: Sky | null; now: number | null }
   }
 }
