@@ -220,27 +220,27 @@ ${sea(-34, -52, 46, 34, 0.75)}${sea(22, -66, 34, 24, 0.6)}${sea(38, -22, 40, 30,
   const puffTone = mix('#a9c8ee', '#ffffff', day)
   const shadeTone = mix('#3a5f9c', '#9fb8d4', day)
 
+  const SANS = "'Avenir Next', Avenir, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', sans-serif"
+  const SERIF = "Didot, 'Bodoni 72', 'Bodoni MT', 'Playfair Display', Georgia, serif"
   const floors = 20
   const litFloors = percent > 0 ? Math.max(1, Math.round((percent / 100) * floors)) : 0
   const gaugeColor = percent >= 85 ? '#f1603f' : percent >= 65 ? '#ff9a52' : '#ffb347'
   const floorRects = Array.from({ length: floors }, (_, k) => {
     const isLit = k < litFloors
     const fy = 970 - (k + 1) * 45
-    return `<rect x="18" y="${fy + 3}" width="36" height="39" rx="2" fill="${isLit ? gaugeColor : '#ffffff'}" opacity="${isLit ? 0.95 : 0.12}"/>`
+    return `<rect x="18" y="${fy + 3}" width="36" height="39" rx="2" fill="${isLit ? gaugeColor : '#ffffff'}" opacity="${isLit ? 0.95 : 0.16}"/>`
   }).join('')
   const markY = 970 - (percent / 100) * 900
-  const gauge = `<rect x="2" y="2" width="146" height="1196" rx="12" fill="#070b16" opacity="0.55"/>
-<text x="75" y="44" text-anchor="middle" font-family="ui-monospace, monospace" font-size="17" letter-spacing="4" fill="#c6cbe4">CONTEXT</text>
-<rect x="12" y="66" width="48" height="908" rx="4" fill="#070b16" opacity="0.7" stroke="#3a4a63" stroke-width="2"/>
+  const gauge = `<rect x="0" y="0" width="150" height="1200" rx="20" fill="url(#veil)"/>
+<text x="75" y="44" text-anchor="middle" font-family="${SANS}" font-size="15" font-weight="500" letter-spacing="7" fill="#ffffff" fill-opacity="0.85">CONTEXT</text>
+<rect x="12" y="66" width="48" height="908" rx="6" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
 ${floorRects}
 <path d="M64 ${markY.toFixed(0)}l10 -7v14z" fill="${gaugeColor}"/>
-<text x="80" y="${(markY + 10).toFixed(0)}" font-family="ui-sans-serif, sans-serif" font-size="28" font-weight="800" fill="#fdf6e3">${percent}%</text>
-<text x="66" y="84" font-family="ui-monospace, monospace" font-size="13" fill="#7f8fa8">full</text>
-<text x="66" y="968" font-family="ui-monospace, monospace" font-size="13" fill="#7f8fa8">${percent < 8 ? '' : 'empty'}</text>
-<text x="75" y="1030" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="24" font-weight="700" fill="#fdf6e3">${usedLabel}</text>
-<text x="75" y="1072" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="22" fill="#c6cbe4">${leftLabel}</text>
-<text x="75" y="1122" text-anchor="middle" font-family="ui-monospace, monospace" font-size="16" fill="#7f8fa8">${visible} stars</text>
-<text x="75" y="1166" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" letter-spacing="2" fill="#7f8fa8">${short(s?.window ?? 0)} WINDOW</text>`
+<text x="80" y="${(markY + 12).toFixed(0)}" font-family="${SERIF}" font-size="36" fill="#ffffff">${percent}%</text>
+<text x="75" y="1034" text-anchor="middle" font-family="${SERIF}" font-size="30" fill="#ffffff">${usedLabel}</text>
+<text x="75" y="1076" text-anchor="middle" font-family="${SANS}" font-size="20" font-weight="400" fill="#ffffff" fill-opacity="0.85">${leftLabel}</text>
+<text x="75" y="1126" text-anchor="middle" font-family="${SANS}" font-size="14" letter-spacing="3" fill="#ffffff" fill-opacity="0.7">${visible} STARS</text>
+<text x="75" y="1166" text-anchor="middle" font-family="${SANS}" font-size="13" letter-spacing="3" fill="#ffffff" fill-opacity="0.7">${short(s?.window ?? 0)} WINDOW</text>`
 
   const time = istLabel(nowMs)
   const strip = left !== null && s && s.used !== null ? `${short(s.used)} used · ${short(left)} left` : `${short(s?.window ?? 0)} window`
@@ -266,6 +266,9 @@ ${floorRects}
 <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1">
 <stop offset="0.3" stop-color="#0a0f26" stop-opacity="0"/><stop offset="0.43" stop-color="#0a0f26" stop-opacity="1"/>
 </linearGradient>
+<radialGradient id="veil" cx="0.5" cy="0.5" r="0.75">
+<stop offset="0" stop-color="#060a18" stop-opacity="0.5"/><stop offset="1" stop-color="#060a18" stop-opacity="0.28"/>
+</radialGradient>
 <linearGradient id="cityglow" x1="0" y1="0" x2="0" y2="1">
 <stop offset="0.3" stop-color="#ff9e4a" stop-opacity="0"/><stop offset="0.5" stop-color="#ff9e4a" stop-opacity="0.35"/><stop offset="1" stop-color="#ffb870" stop-opacity="0.15"/>
 </linearGradient>
@@ -310,12 +313,12 @@ ${floorRects}
 </svg>
 <rect x="0" y="0" width="22" height="100" fill="url(#pane)"/>
 <svg x="${(x - 11.25).toFixed(2)}" y="${(y - 18).toFixed(2)}" width="22.5" height="36" viewBox="-300 -300 600 600" preserveAspectRatio="none">${body}</svg>
-<svg x="89.25" y="17" width="7.5" height="76" viewBox="0 0 150 1200" preserveAspectRatio="xMidYMin meet">${gauge}</svg>
+<svg x="88.25" y="17" width="9.5" height="82" viewBox="0 0 150 1200" preserveAspectRatio="xMidYMax meet">${gauge}</svg>
 <svg x="86.6" y="3" width="12.8" height="11" viewBox="0 0 300 200" preserveAspectRatio="xMidYMin meet">
-<rect x="4" y="4" width="292" height="192" rx="8" fill="#070b16" fill-opacity="0.92" stroke="#3a4a63" stroke-width="3"/>
-<text x="150" y="58" text-anchor="middle" font-family="ui-monospace, monospace" font-size="20" letter-spacing="6" fill="#7f8fa8">IST</text>
-<text class="led" x="150" y="118" text-anchor="middle" font-family="ui-monospace, monospace" font-weight="700" font-size="50" fill="#ffb347">${time.replace(' IST', '')}</text>
-<text x="150" y="164" text-anchor="middle" font-family="ui-monospace, monospace" font-size="18" fill="#c6cbe4">${strip}</text>
+<rect x="0" y="0" width="300" height="200" rx="20" fill="url(#veil)"/>
+<text x="150" y="50" text-anchor="middle" font-family="${SANS}" font-size="16" font-weight="500" letter-spacing="8" fill="#ffffff" fill-opacity="0.8">MUMBAI · IST</text>
+<text x="150" y="118" text-anchor="middle" font-family="${SERIF}" font-size="60" fill="#ffffff">${time.replace(' IST', '')}</text>
+<text x="150" y="162" text-anchor="middle" font-family="${SANS}" font-size="17" letter-spacing="1" fill="#ffffff" fill-opacity="0.85">${strip}</text>
 </svg>
 </svg>`
 }

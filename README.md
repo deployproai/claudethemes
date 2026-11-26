@@ -6,7 +6,7 @@ Themes for Claude Code, packaged as mods.
 
 A backdrop for the Claude desktop and phone apps: Mumbai seen from a high office window, following the time of day in India (IST). The city is a vector tracing of a photograph of that view (a theme backdrop takes drawings, not pictures), so it keeps the photo's real colours, buildings, metro line and glass reflections.
 
-- **Clock:** the time in IST with AM or PM on an LED panel at the top of the glass tower, with tokens used and left beneath it.
+- **Clock:** the time in IST with AM or PM in a serif face at the top of the glass tower, over a translucent shade, with tokens used and left beneath it.
 - **Day and night:** a blue haze by day, warm dawn and dusk, and at night a darker city with a faint warm glow at the horizon. Nothing in the scene flickers.
 - **Context gauge:** a vertical bar on the glass tower on the right, under the clock, drawn as twenty floors that light up from the ground as the context window fills, with the percentage beside it and tokens used, tokens left and stars remaining beneath. It turns orange past 65% used and red past 85%.
 - **Sun and moon:** from 6 AM to 6 PM IST a white sun with a starburst of rays and lens flares crosses a blue sky of clouds; from 6 PM to 6 AM a full blue-white moon is up in a deep blue night. Each rises above the skyline beside the gauge and sinks back. They are round at a typical laptop window shape and slightly oval on very wide or tall windows, because the backdrop stretches with the window.
