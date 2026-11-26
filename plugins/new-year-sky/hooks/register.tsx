@@ -34,7 +34,22 @@ const { theme, problems } = makeColors({
   },
 })
 
-const LOOK: ThemeSetArgs = {
+// Each message sits on its own night-blue card, so the app's frosting over the chat column can be
+// almost clear and the sky shows all around the words.
+const CARD = 'rgba(11, 16, 38, 0.86)'
+export const LOOK: ThemeSetArgs = {
+  colors: theme,
+  overrideColorScheme: 'dark',
+  backdrop: { scene: SCENE, glass: { blur: 2, tint: '#0b1026', opacity: 0.12 } },
+  style: {
+    UserMessage: { color: '#fdf6e3', backgroundColor: 'rgba(42, 30, 6, 0.9)', borderColor: '#ffd166', borderWidth: 1, radius: 18, padding: 14, shadow: { y: 4, blur: 14, color: '#0006' } },
+    AssistantMessage: { color: '#eef0fa', backgroundColor: CARD, radius: 18, padding: 16, shadow: { y: 4, blur: 16, color: '#0005' } },
+    ToolUse: { color: '#c6cbe4', backgroundColor: CARD, radius: 10, paddingX: 10, paddingY: 4 },
+  },
+}
+
+// A build that doesn't take `style` refuses the whole look, so fall back to a frosted column.
+const FALLBACK: ThemeSetArgs = {
   colors: theme,
   overrideColorScheme: 'dark',
   backdrop: { scene: SCENE, glass: { blur: 4, tint: '#0b1026', opacity: 0.42 } },
@@ -331,7 +346,12 @@ export const register: Register = on => {
     const unpainted = problems.find(line => line.startsWith("Desktop won't paint"))
     if (unpainted !== undefined) $.ui.toast(unpainted)
 
-    const set = await $.theme.set(LOOK)
+    try {
+      await $.theme.set(LOOK)
+    } catch (error) {
+      $.ui.log(`new-year-sky: message cards not supported here, using a frosted column (${String(error)})`)
+      await $.theme.set(FALLBACK)
+    }
 
     const [{ context }, now] = await Promise.all([$.session.usage(), $.clock.now()])
     const measured = toSky(context)

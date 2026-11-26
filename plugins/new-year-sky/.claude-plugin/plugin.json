@@ -1,1 +1,1 @@
-{ "name": "new-year-sky", "version": "0.2.0", "description": "A New Year sky over a New York skyline that follows the time of day in IST: stars thin out as the context window fills, and the sun or moon shows tokens used and left.", "types": "./types/index.d.ts" }
+{ "name": "new-year-sky", "version": "0.3.0", "description": "A New Year sky over a New York skyline that follows the time of day in IST: stars thin out as the context window fills, and the sun or moon shows tokens used and left.", "types": "./types/index.d.ts" }

@@ -13,6 +13,8 @@ A backdrop for the Claude desktop and phone apps: a New Year sky over a New York
 - **Sun and moon:** the sun is up from 6 AM to 6 PM IST and the moon from 6 PM to 6 AM. Each climbs the left side, crosses the middle around noon or midnight and sets down the right side, so the chat column doesn't hide it. It carries the context figures, and warms to amber past 65% used and to ember past 85%.
 - **Stars:** 160 with an empty context window, going out one by one as it fills.
 
+- **Message cards:** your messages and Claude's replies sit on their own rounded cards over an almost clear chat column, so the sky shows all around the words. App versions that don't support styled messages get a frosted column instead.
+
 In a terminal there is no backdrop; the status line shows the time, usage and stars instead. The sky draws once a desktop or phone app is showing the session.
 
 ### Install
