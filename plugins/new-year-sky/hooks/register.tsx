@@ -34,17 +34,53 @@ const { theme, problems } = makeColors({
   },
 })
 
-// Each message sits on its own night-blue card, so the app's frosting over the chat column can be
-// almost clear and the sky shows all around the words.
-const CARD = 'rgba(11, 16, 38, 0.86)'
+// Messages sit on their own cards, so the app's frosting over the chat column can be almost clear
+// and the sky shows all around the words. Replies are midnight invitations with a gold hairline and
+// corner sparkles; the person's messages are golden tickets with cut corners, tilted a touch.
+const NAVY = '#0e1534'
+const GOLD = '#f4c24f'
+const sparkle = (cx: number, cy: number, r: number) =>
+  `M${cx} ${cy - r}L${cx + r * 0.28} ${cy - r * 0.28}L${cx + r} ${cy}L${cx + r * 0.28} ${cy + r * 0.28}L${cx} ${cy + r}L${cx - r * 0.28} ${cy + r * 0.28}L${cx - r} ${cy}L${cx - r * 0.28} ${cy - r * 0.28}Z`
+const dot = (cx: number, cy: number, r: number) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`
+
+const INVITATION = {
+  vector: {
+    viewBox: 96,
+    slice: 28,
+    paths: [
+      { d: 'M10 0H86Q96 0 96 10V86Q96 96 86 96H10Q0 96 0 86V10Q0 0 10 0Z', color: NAVY },
+      { d: 'M11 5H85Q91 5 91 11V85Q91 91 85 91H11Q5 91 5 85V11Q5 5 11 5Z', strokeWidth: 1, color: '#ffd16699' },
+      { d: sparkle(13, 13, 5), color: '#ffd166' },
+      { d: dot(21, 9, 1.1), color: '#ffd166' },
+      { d: sparkle(83, 83, 5), color: '#ffd166' },
+      { d: dot(75, 87, 1.1), color: '#ffd166' },
+    ],
+  },
+} as const
+
+const TICKET = {
+  vector: {
+    viewBox: 96,
+    slice: 24,
+    paths: [
+      { d: 'M10 0H86A10 10 0 0 0 96 10V86A10 10 0 0 0 86 96H10A10 10 0 0 0 0 86V10A10 10 0 0 0 10 0Z', color: GOLD },
+      { d: 'M13 5H83A9 9 0 0 0 91 13V83A9 9 0 0 0 83 91H13A9 9 0 0 0 5 83V13A9 9 0 0 0 13 5Z', strokeWidth: 1, color: '#7a4e00aa' },
+      { d: sparkle(84, 14, 4), color: '#7a4e00' },
+    ],
+  },
+} as const
+
+const ticket = { color: '#2a1e06', backgroundColor: GOLD, fill: TICKET, padding: 16, shadow: { y: 5, blur: 14, color: '#0007' } } as const
+
 export const LOOK: ThemeSetArgs = {
   colors: theme,
   overrideColorScheme: 'dark',
   backdrop: { scene: SCENE, glass: { blur: 2, tint: '#0b1026', opacity: 0.12 } },
   style: {
-    UserMessage: { color: '#fdf6e3', backgroundColor: 'rgba(42, 30, 6, 0.9)', borderColor: '#ffd166', borderWidth: 1, radius: 18, padding: 14, shadow: { y: 4, blur: 14, color: '#0006' } },
-    AssistantMessage: { color: '#eef0fa', backgroundColor: CARD, radius: 18, padding: 16, shadow: { y: 4, blur: 16, color: '#0005' } },
-    ToolUse: { color: '#c6cbe4', backgroundColor: CARD, radius: 10, paddingX: 10, paddingY: 4 },
+    Heading: { color: '#ffd166', fontFamily: ['serif'], italic: true },
+    UserMessage: [{ ...ticket, rotate: -1 }, { ...ticket, rotate: 1 }],
+    AssistantMessage: { color: '#eef0fa', backgroundColor: NAVY, fill: INVITATION, padding: 22, shadow: { y: 6, blur: 18, color: '#0008' } },
+    ToolUse: { color: '#ffd166', backgroundColor: 'rgba(11, 16, 38, 0.88)', radius: 12, borderColor: '#ffd16655', borderWidth: 1, paddingX: 10, paddingY: 4 },
   },
 }
 
