@@ -9,7 +9,8 @@ A backdrop for the Claude desktop and phone apps: Mumbai seen from a high office
 - **Clock:** the time in IST with AM or PM on an LED panel at the top of the glass tower, with tokens used and left beneath it.
 - **New Year:** a "Happy New Year 2027" panel on the tower.
 - **Day and night:** a blue haze by day, warm dawn and dusk, and at night a darker city with a faint warm glow at the horizon. Nothing in the scene flickers.
-- **Sun and moon:** the sun is a soft glare in the haze from 6 AM to 6 PM IST; the moon, from 6 PM to 6 AM, carries the context figures and the stars left, and warms to amber past 65% used and to ember past 85%. Each rises above the skyline on the left and sinks back.
+- **Context gauge:** a vertical bar on the left edge, drawn as twenty floors that light up from the ground as the context window fills, with the percentage beside it and tokens used, tokens left and stars remaining beneath. It turns orange past 65% used and red past 85%.
+- **Sun and moon:** the sun is a soft glare in the haze from 6 AM to 6 PM IST and the moon is up from 6 PM to 6 AM. Each rises above the skyline beside the gauge and sinks back.
 - **Stars:** 160 with an empty context window, going out one by one as it fills.
 - **Message cards:** Claude's replies sit on midnight-blue invitation cards with a gold hairline frame and corner sparkles; your messages on golden tickets with cut corners, tilted a touch. App versions that don't support styled messages get a frosted column instead.
 

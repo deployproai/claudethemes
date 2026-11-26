@@ -162,7 +162,7 @@ const starsLeft = (s: Sky | null) => Math.round(TOTAL_STARS * (1 - (s?.percent ?
  */
 function arc(t: number): { x: number; y: number } {
   const lift = Math.sin(Math.PI * t)
-  return { x: 10 + 2 * lift, y: 40 - 26 * lift }
+  return { x: 14.5 + 1.5 * lift, y: 40 - 26 * lift }
 }
 
 export function scene(s: Sky | null, nowMs: number): string {
@@ -197,11 +197,29 @@ export function scene(s: Sky | null, nowMs: number): string {
   const body = isSun
     ? `<circle r="150" fill="url(#glare)"/><circle r="46" fill="#fffbe9"/><circle r="70" fill="#fff4cc" opacity="0.35"/>`
     : `<circle class="halo" r="150" fill="url(#halo)"/><circle r="104" fill="url(#moon)"/>
-<circle cx="-40" cy="-38" r="15" fill="${ink}" opacity="0.06"/><circle cx="38" cy="44" r="20" fill="${ink}" opacity="0.05"/><circle cx="30" cy="-54" r="9" fill="${ink}" opacity="0.06"/>
-<text y="-30" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" letter-spacing="3" fill="${ink}" opacity="0.65">CONTEXT</text>
-<text y="6" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="26" font-weight="700" fill="${ink}">${usedLabel}</text>
-<text y="38" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="20" fill="${ink}" opacity="0.85">${leftLabel}</text>
-<text y="64" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="${ink}" opacity="0.6">${visible} stars left</text>`
+<circle cx="-40" cy="-38" r="15" fill="${ink}" opacity="0.06"/><circle cx="38" cy="44" r="20" fill="${ink}" opacity="0.05"/><circle cx="30" cy="-54" r="9" fill="${ink}" opacity="0.06"/>`
+
+  const floors = 20
+  const litFloors = percent > 0 ? Math.max(1, Math.round((percent / 100) * floors)) : 0
+  const gaugeColor = percent >= 85 ? '#f1603f' : percent >= 65 ? '#ff9a52' : '#ffb347'
+  const floorRects = Array.from({ length: floors }, (_, k) => {
+    const isLit = k < litFloors
+    const fy = 970 - (k + 1) * 45
+    return `<rect x="18" y="${fy + 3}" width="36" height="39" rx="2" fill="${isLit ? gaugeColor : '#ffffff'}" opacity="${isLit ? 0.95 : 0.12}"/>`
+  }).join('')
+  const markY = 970 - (percent / 100) * 900
+  const gauge = `<rect x="2" y="2" width="146" height="1196" rx="12" fill="#070b16" opacity="0.55"/>
+<text x="75" y="44" text-anchor="middle" font-family="ui-monospace, monospace" font-size="17" letter-spacing="4" fill="#c6cbe4">CONTEXT</text>
+<rect x="12" y="66" width="48" height="908" rx="4" fill="#070b16" opacity="0.7" stroke="#3a4a63" stroke-width="2"/>
+${floorRects}
+<path d="M64 ${markY.toFixed(0)}l10 -7v14z" fill="${gaugeColor}"/>
+<text x="80" y="${(markY + 10).toFixed(0)}" font-family="ui-sans-serif, sans-serif" font-size="28" font-weight="800" fill="#fdf6e3">${percent}%</text>
+<text x="66" y="84" font-family="ui-monospace, monospace" font-size="13" fill="#7f8fa8">full</text>
+<text x="66" y="968" font-family="ui-monospace, monospace" font-size="13" fill="#7f8fa8">${percent < 8 ? '' : 'empty'}</text>
+<text x="75" y="1030" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="24" font-weight="700" fill="#fdf6e3">${usedLabel}</text>
+<text x="75" y="1072" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="22" fill="#c6cbe4">${leftLabel}</text>
+<text x="75" y="1122" text-anchor="middle" font-family="ui-monospace, monospace" font-size="16" fill="#7f8fa8">${visible} stars</text>
+<text x="75" y="1166" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" letter-spacing="2" fill="#7f8fa8">${short(s?.window ?? 0)} WINDOW</text>`
 
   const time = istLabel(nowMs)
   const strip = left !== null && s && s.used !== null ? `${short(s.used)} used · ${short(left)} left` : `${short(s?.window ?? 0)} window`
@@ -245,6 +263,7 @@ export function scene(s: Sky | null, nowMs: number): string {
 <rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="url(#cityglow)" opacity="${((1 - day) * 0.55).toFixed(2)}"/>
 </svg>
 <rect x="0" y="0" width="22" height="100" fill="url(#pane)"/>
+<svg x="1" y="13" width="7.5" height="74" viewBox="0 0 150 1200" preserveAspectRatio="xMinYMid meet">${gauge}</svg>
 <svg x="${(x - 8).toFixed(2)}" y="${(y - 11.5).toFixed(2)}" width="16" height="23" viewBox="-160 -160 320 320" preserveAspectRatio="xMidYMid meet">${body}</svg>
 <svg x="86.6" y="3" width="12.8" height="11" viewBox="0 0 300 200" preserveAspectRatio="xMidYMin meet">
 <rect x="4" y="4" width="292" height="192" rx="8" fill="#070b16" fill-opacity="0.92" stroke="#3a4a63" stroke-width="3"/>
@@ -319,8 +338,8 @@ export const register: Register = on => {
     const now = (await read($, clock)) ?? (await $.clock.now())
     const body = istMinutes(now) / 60 >= 6 && istMinutes(now) / 60 < 18 ? 'sun' : 'moon'
     const alt = s && s.used !== null
-      ? `A Mumbai skyline seen from an office window at ${istLabel(now)}. The ${body} reads ${short(s.used)} tokens used and ${short(Math.max(0, s.window - s.used))} left; ${starsLeft(s)} of ${TOTAL_STARS} stars remain.`
-      : `A Mumbai skyline seen from an office window at ${istLabel(now)}, with the ${body} showing the context window.`
+      ? `A Mumbai skyline seen from an office window at ${istLabel(now)}. A gauge on the left reads ${short(s.used)} tokens used and ${short(Math.max(0, s.window - s.used))} left; ${starsLeft(s)} of ${TOTAL_STARS} stars remain.`
+      : `A Mumbai skyline seen from an office window at ${istLabel(now)}, with a gauge on the left showing the context window.`
 
     return <Svg source={scene(s, now)} alt={alt} isInteractive />
   })
