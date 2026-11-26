@@ -7,8 +7,8 @@ import type { Sky } from '../types'
 
 // A New Year sky that follows the time of day in India (IST). By night the
 // moon is up and the stars go out one by one as the context window fills; by
-// day the sun crosses the sky. Whichever is up carries the token figures, and
-// a clock at the top shows the time in IST.
+// day the sun crosses a blue sky of clouds. A gauge on the left carries the
+// token figures, and a clock at the top shows the time in IST.
 
 const SCENE = 'new-year-sky'
 const TOTAL_STARS = 160
@@ -162,7 +162,7 @@ const starsLeft = (s: Sky | null) => Math.round(TOTAL_STARS * (1 - (s?.percent ?
  */
 function arc(t: number): { x: number; y: number } {
   const lift = Math.sin(Math.PI * t)
-  return { x: 14.5 + 1.5 * lift, y: 40 - 26 * lift }
+  return { x: 13.8 + 0.6 * lift, y: 42 - 24 * lift }
 }
 
 export function scene(s: Sky | null, nowMs: number): string {
@@ -173,9 +173,9 @@ export function scene(s: Sky | null, nowMs: number): string {
   const percent = s?.percent ?? 0
 
   // The photo's sky: blue overhead, paling to a grey haze at the horizon.
-  const top = mix('#060a1c', '#6d97d8', day)
-  const middle = mix(mix('#10163a', '#9bb7da', day), '#d88a6a', warmth * 0.35)
-  const bottom = mix(mix('#2b2650', '#c3ccd1', day), '#f0a066', warmth * 0.6)
+  const top = mix('#06103a', '#1668cf', day)
+  const middle = mix(mix('#0d2a6c', '#3f93e6', day), '#d88a6a', warmth * 0.35)
+  const bottom = mix(mix('#2a5ea8', '#a8d2f4', day), '#f0a066', warmth * 0.6)
 
   const visible = starsLeft(s)
   const keep = new Set(ORDER.slice(0, visible))
@@ -190,14 +190,35 @@ export function scene(s: Sky | null, nowMs: number): string {
   const isSun = hours >= 6 && hours < 18
   const t = isSun ? (hours - 6) / 12 : (((hours - 18) + 24) % 24) / 12
   const { x, y } = arc(t)
-  const warn = percent >= 85 ? '#f1a070' : percent >= 65 ? '#f3d59a' : '#f2ecdc'
-  const ink = '#1a2140'
-
-  // The sun is a soft glare in the haze; the moon is a shaded disc carrying the context figures.
+  // Night: a full blue-white moon with soft grey seas and a wide glow. Day: a white-hot sun with a
+  // starburst of rays and a string of lens flares, as a camera sees it.
+  const sea = (cx: number, cy: number, rx: number, ry: number, o: number) =>
+    `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#sea)" opacity="${o}"/>`
+  const rays = Array.from({ length: 16 }, (_, k) => {
+    const a = (k * Math.PI) / 8 + 0.2
+    const len = k % 4 === 0 ? 285 : k % 2 === 0 ? 215 : 140
+    const w = k % 2 === 0 ? 0.035 : 0.022
+    const p = (ang: number, r: number) => `${(Math.cos(ang) * r).toFixed(1)} ${(Math.sin(ang) * r).toFixed(1)}`
+    return `M${p(a - w * 4, 20)}L${p(a, len)}L${p(a + w * 4, 20)}Z`
+  }).join('')
   const body = isSun
-    ? `<circle r="150" fill="url(#glare)"/><circle r="46" fill="#fffbe9"/><circle r="70" fill="#fff4cc" opacity="0.35"/>`
-    : `<circle class="halo" r="150" fill="url(#halo)"/><circle r="104" fill="url(#moon)"/>
-<circle cx="-40" cy="-38" r="15" fill="${ink}" opacity="0.06"/><circle cx="38" cy="44" r="20" fill="${ink}" opacity="0.05"/><circle cx="30" cy="-54" r="9" fill="${ink}" opacity="0.06"/>`
+    ? `<circle r="290" fill="url(#glare)"/><path d="${rays}" fill="url(#ray)"/><circle r="74" fill="url(#core)"/><circle r="30" fill="#ffffff"/>
+<circle cx="-62" cy="-118" r="20" fill="#ffc46b" opacity="0.4"/><circle cx="-30" cy="-190" r="24" fill="#b9a4f0" opacity="0.22"/><circle cx="2" cy="-150" r="12" fill="#ffd9a0" opacity="0.3"/>
+<circle cx="50" cy="96" r="26" fill="#bfe0ff" opacity="0.2"/><circle cx="-34" cy="66" r="15" fill="#ffe6b0" opacity="0.25"/><circle cx="104" cy="200" r="38" fill="#cfe6ff" opacity="0.12" stroke="#ffffff" stroke-opacity="0.25" stroke-width="2"/>`
+    : `<circle class="halo" r="290" fill="url(#halo)"/><circle r="124" fill="#cfe4fb" opacity="0.5"/><circle r="118" fill="url(#moon)"/>
+${sea(-34, -52, 46, 34, 0.75)}${sea(22, -66, 34, 24, 0.6)}${sea(38, -22, 40, 30, 0.7)}${sea(-62, -6, 30, 40, 0.6)}${sea(-20, 6, 34, 22, 0.45)}${sea(60, 22, 24, 30, 0.45)}${sea(-40, 60, 30, 20, 0.35)}${sea(12, 44, 20, 14, 0.3)}
+<circle cx="-22" cy="84" r="7" fill="#ffffff" opacity="0.8"/><circle cx="-22" cy="84" r="20" fill="url(#bright)"/><circle cx="-84" cy="-34" r="5" fill="#ffffff" opacity="0.7"/><circle cx="52" cy="70" r="16" fill="url(#bright)"/><circle cx="-70" cy="44" r="18" fill="url(#bright)"/>
+<circle r="118" fill="url(#limb)"/>`
+
+  // Clouds: heaps of soft puffs. The low ones stay through the night, lit blue by the moon; the high ones come with the day.
+  const puffs: [number, number, number, number][] = [[-0.38, 0.08, 0.3, 0.19], [-0.16, -0.08, 0.33, 0.25], [0.1, -0.13, 0.36, 0.28], [0.36, 0.05, 0.3, 0.2], [0, 0.13, 0.52, 0.16]]
+  const cloud = (cx: number, cy: number, w: number, o: number) => `<g opacity="${o.toFixed(2)}"><ellipse cx="${cx}" cy="${cy + w * 0.2}" rx="${w * 0.5}" ry="${w * 0.1}" fill="url(#shade)"/>${puffs.map(([dx, dy, rx, ry]) =>
+    `<ellipse cx="${(cx + dx * w).toFixed(0)}" cy="${(cy + dy * w).toFixed(0)}" rx="${(rx * w).toFixed(0)}" ry="${(ry * w).toFixed(0)}" fill="url(#puff)"/>`).join('')}</g>`
+  const low = 0.7 + day * 0.25
+  const clouds = cloud(250, 520, 330, low) + cloud(640, 560, 420, low) + cloud(1050, 530, 360, low) + cloud(1420, 560, 380, low) + cloud(860, 585, 300, low)
+    + (day > 0.05 ? cloud(520, 330, 230, day * 0.95) + cloud(1180, 250, 260, day * 0.95) + cloud(1480, 120, 200, day * 0.9) + cloud(820, 110, 170, day * 0.85) + cloud(90, 300, 200, day * 0.9) : '')
+  const puffTone = mix('#a9c8ee', '#ffffff', day)
+  const shadeTone = mix('#3a5f9c', '#9fb8d4', day)
 
   const floors = 20
   const litFloors = percent > 0 ? Math.max(1, Math.round((percent / 100) * floors)) : 0
@@ -242,29 +263,54 @@ ${floorRects}
 <linearGradient id="pane" x1="0" y1="0" x2="1" y2="0">
 <stop offset="0" stop-color="#173c44" stop-opacity="${(0.25 + day * 0.4).toFixed(2)}"/><stop offset="1" stop-color="#173c44" stop-opacity="0"/>
 </linearGradient>
+<linearGradient id="dark" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0.3" stop-color="#0a0f26" stop-opacity="0"/><stop offset="0.43" stop-color="#0a0f26" stop-opacity="1"/>
+</linearGradient>
 <linearGradient id="cityglow" x1="0" y1="0" x2="0" y2="1">
 <stop offset="0.3" stop-color="#ff9e4a" stop-opacity="0"/><stop offset="0.5" stop-color="#ff9e4a" stop-opacity="0.35"/><stop offset="1" stop-color="#ffb870" stop-opacity="0.15"/>
 </linearGradient>
 <radialGradient id="glare" cx="0.5" cy="0.5" r="0.5">
-<stop offset="0.2" stop-color="#fff6d8" stop-opacity="0.9"/><stop offset="0.55" stop-color="#ffe9b0" stop-opacity="0.3"/><stop offset="1" stop-color="#ffe9b0" stop-opacity="0"/>
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="0.22" stop-color="#eaf5ff" stop-opacity="0.55"/><stop offset="0.6" stop-color="#cfe6ff" stop-opacity="0.16"/><stop offset="1" stop-color="#cfe6ff" stop-opacity="0"/>
+</radialGradient>
+<radialGradient id="ray" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="285">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.4"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+</radialGradient>
+<radialGradient id="core" cx="0.5" cy="0.5" r="0.5">
+<stop offset="0.3" stop-color="#ffffff"/><stop offset="0.6" stop-color="#fffbe6" stop-opacity="0.8"/><stop offset="1" stop-color="#fff6cc" stop-opacity="0"/>
 </radialGradient>
 <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
-<stop offset="0.45" stop-color="${warn}" stop-opacity="0.35"/><stop offset="1" stop-color="${warn}" stop-opacity="0"/>
+<stop offset="0.38" stop-color="#bcd9ff" stop-opacity="0.5"/><stop offset="0.6" stop-color="#7fb0f0" stop-opacity="0.18"/><stop offset="1" stop-color="#7fb0f0" stop-opacity="0"/>
 </radialGradient>
-<radialGradient id="moon" cx="0.4" cy="0.35" r="0.75">
-<stop offset="0" stop-color="#fffdf6"/><stop offset="0.7" stop-color="${warn}"/><stop offset="1" stop-color="${mix(warn, '#8d8a80', 0.35)}"/>
+<radialGradient id="moon" cx="0.42" cy="0.4" r="0.7">
+<stop offset="0" stop-color="#ffffff"/><stop offset="0.6" stop-color="#e6f1fc"/><stop offset="1" stop-color="#b3cfee"/>
+</radialGradient>
+<radialGradient id="sea" cx="0.5" cy="0.5" r="0.5">
+<stop offset="0" stop-color="#7d9cc4" stop-opacity="0.85"/><stop offset="0.55" stop-color="#8fadd2" stop-opacity="0.5"/><stop offset="1" stop-color="#a9c4e4" stop-opacity="0"/>
+</radialGradient>
+<radialGradient id="bright" cx="0.5" cy="0.5" r="0.5">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.7"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+</radialGradient>
+<radialGradient id="limb" cx="0.5" cy="0.5" r="0.5">
+<stop offset="0.8" stop-color="#5f86bd" stop-opacity="0"/><stop offset="1" stop-color="#5f86bd" stop-opacity="0.45"/>
+</radialGradient>
+<radialGradient id="puff" cx="0.5" cy="0.4" r="0.5">
+<stop offset="0" stop-color="${puffTone}" stop-opacity="1"/><stop offset="0.6" stop-color="${puffTone}" stop-opacity="0.85"/><stop offset="1" stop-color="${puffTone}" stop-opacity="0"/>
+</radialGradient>
+<radialGradient id="shade" cx="0.5" cy="0.5" r="0.5">
+<stop offset="0" stop-color="${shadeTone}" stop-opacity="0.6"/><stop offset="1" stop-color="${shadeTone}" stop-opacity="0"/>
 </radialGradient>
 </defs>
 <rect width="100" height="100" fill="url(#sky)"/>
 <svg x="0" y="0" width="84" height="38" viewBox="0 0 1400 600" preserveAspectRatio="xMidYMid slice"><g class="stars" opacity="${(1 - day).toFixed(2)}">${lit}</g></svg>
+<svg x="0" y="0" width="100" height="62" viewBox="0 0 1600 640" preserveAspectRatio="xMidYMax slice">${clouds}</svg>
 <svg x="0" y="0" width="100" height="100" viewBox="0 0 ${PHOTO_WIDTH} ${PHOTO_HEIGHT}" preserveAspectRatio="xMidYMax slice">${PHOTO_PATHS}
-<rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="#0a0f26" opacity="${night.toFixed(2)}"/>
+<rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="url(#dark)" opacity="${night.toFixed(2)}"/><path d="M477 0H560V504H486Z" fill="#0a0f26" opacity="${night.toFixed(2)}"/>
 <rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="#f09a5c" opacity="${(warmth * 0.16).toFixed(2)}"/>
 <rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="url(#cityglow)" opacity="${((1 - day) * 0.55).toFixed(2)}"/>
 </svg>
 <rect x="0" y="0" width="22" height="100" fill="url(#pane)"/>
+<svg x="${(x - 11.25).toFixed(2)}" y="${(y - 18).toFixed(2)}" width="22.5" height="36" viewBox="-300 -300 600 600" preserveAspectRatio="none">${body}</svg>
 <svg x="1" y="13" width="7.5" height="74" viewBox="0 0 150 1200" preserveAspectRatio="xMinYMid meet">${gauge}</svg>
-<svg x="${(x - 8).toFixed(2)}" y="${(y - 11.5).toFixed(2)}" width="16" height="23" viewBox="-160 -160 320 320" preserveAspectRatio="xMidYMid meet">${body}</svg>
 <svg x="86.6" y="3" width="12.8" height="11" viewBox="0 0 300 200" preserveAspectRatio="xMidYMin meet">
 <rect x="4" y="4" width="292" height="192" rx="8" fill="#070b16" fill-opacity="0.92" stroke="#3a4a63" stroke-width="3"/>
 <text x="150" y="58" text-anchor="middle" font-family="ui-monospace, monospace" font-size="20" letter-spacing="6" fill="#7f8fa8">IST</text>
