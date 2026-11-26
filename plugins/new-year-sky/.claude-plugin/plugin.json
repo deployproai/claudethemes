@@ -1,0 +1,1 @@
+{ "name": "new-year-sky", "version": "0.1.0", "description": "A New Year night sky: stars thin out as the context window fills, and the moon shows tokens used and left.", "types": "./types/index.d.ts" }
