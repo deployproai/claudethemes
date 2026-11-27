@@ -3,6 +3,8 @@ import type { EngineInterface, Register, SessionContextUsage, ThemeSetArgs } fro
 
 import { makeColors } from './make-colors.js'
 import { matchCountries } from './countries'
+import { MODES, WEATHER_CSS, WEATHER_DEFS, character, conditionsFor, describe, moodFor, weatherLayer } from './weather'
+import type { Mode } from './weather'
 import { PHOTO_HEIGHT, PHOTO_PATHS, PHOTO_WIDTH } from './photo'
 import type { City, Place, Search, Sky, Weather } from '../types'
 
@@ -19,6 +21,9 @@ const where = atom({ plugin: 'day-at-office', key: 'place' } as const, null)
 const conditions = atom({ plugin: 'day-at-office', key: 'weather' } as const, null)
 const finder = atom({ plugin: 'day-at-office', key: 'search' } as const, { query: '', results: [], note: '' } as Search)
 const PANE = 'city'
+const MODE_PANE = 'weather'
+const chosenMode = atom({ plugin: 'day-at-office', key: 'mode' } as const, 'live')
+const asMode = (v: unknown): Mode => (MODES.find(m => m.mode === v)?.mode ?? 'live')
 const MUMBAI_CITY: City = { name: 'Mumbai', label: 'Mumbai, Maharashtra, India', lat: 19.076, lon: 72.8777 }
 
 /** Until the city's own figures arrive, or if they never do, the sky follows Mumbai. */
@@ -165,20 +170,6 @@ function season(epochMs: number, p: Place): string {
   return m <= 1 || m === 11 ? 'Winter' : m <= 4 ? 'Spring' : m <= 7 ? 'Summer' : 'Autumn'
 }
 
-type Kind = 'clear' | 'cloudy' | 'overcast' | 'fog' | 'drizzle' | 'rain' | 'snow' | 'storm'
-
-/** WMO weather codes, as Open-Meteo reports them, to a kind of sky and a word for the clock. */
-function describe(code: number): { kind: Kind; label: string } {
-  if (code <= 1) return { kind: 'clear', label: code === 0 ? 'Clear' : 'Mostly clear' }
-  if (code === 2) return { kind: 'cloudy', label: 'Partly cloudy' }
-  if (code === 3) return { kind: 'overcast', label: 'Overcast' }
-  if (code === 45 || code === 48) return { kind: 'fog', label: 'Fog' }
-  if (code >= 51 && code <= 57) return { kind: 'drizzle', label: 'Drizzle' }
-  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return { kind: 'rain', label: code >= 80 ? 'Showers' : 'Rain' }
-  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return { kind: 'snow', label: 'Snow' }
-  if (code >= 95) return { kind: 'storm', label: 'Thunderstorm' }
-  return { kind: 'cloudy', label: 'Cloudy' }
-}
 
 /** How much daylight there is, 0 (night) to 1 (day): twilight runs 45 minutes either side of sunrise and sunset. */
 function daylight(m: number, rise: number, set: number): number {
@@ -227,24 +218,28 @@ function arc(t: number): { x: number; y: number } {
   return { x: 8 + 72 * t, y: 50 - 36 * lift }
 }
 
-export function scene(s: Sky | null, nowMs: number, p: Place = MUMBAI, w: Weather | null = null): string {
+export function scene(s: Sky | null, nowMs: number, p: Place = MUMBAI, w: Weather | null = null, mode: Mode = 'live'): string {
   const minutes = localMinutes(nowMs, p)
   const { rise, set } = sunTimes(nowMs, p)
-  const sky = w ? describe(w.code) : { kind: 'clear' as Kind, label: '' }
+  // The weather grows stronger as the context window fills: k runs from 0.2 (empty) to 1 (full).
+  const k = 0.2 + 0.8 * ((s?.percent ?? 0) / 100)
+  const cond = conditionsFor(mode, w, k)
+  const sky = { kind: cond.kind, label: cond.label }
   const wet = sky.kind === 'rain' || sky.kind === 'drizzle' || sky.kind === 'storm' || sky.kind === 'snow'
-  const cover = w ? w.cloud : 25
-  // How far bad weather drains the colour from the sky, and how much it veils the sun and moon.
-  const grey = sky.kind === 'storm' ? 0.95 : wet || sky.kind === 'overcast' ? 0.85 : sky.kind === 'fog' ? 0.5 : (cover / 100) * 0.3
-  const veiled = sky.kind === 'storm' || wet || sky.kind === 'overcast' ? 0.2 : sky.kind === 'fog' ? 0.45 : 1 - (cover / 100) * 0.4
+  const cover = cond.cover
+  const grey = cond.grey
+  const veiled = cond.veiled
   const day = daylight(minutes, rise, set)
   const warmth = Math.max(0, 1 - Math.abs(day - 0.5) * 2)
   const percent = s?.percent ?? 0
 
   // The photo's sky: blue overhead, paling to a grey haze at the horizon.
   const overcastTone = mix('#161b26', sky.kind === 'storm' ? '#5d6674' : '#8e98a6', day)
-  const top = mix(mix('#06103a', '#1668cf', day), overcastTone, grey)
-  const middle = mix(mix(mix('#0d2a6c', '#3f93e6', day), '#d88a6a', warmth * 0.35), overcastTone, grey)
-  const bottom = mix(mix(mix('#2a5ea8', '#a8d2f4', day), '#f0a066', warmth * 0.6), mix(overcastTone, '#ffffff', 0.15), grey)
+  const [tintColor, tintAmount] = cond.tint
+  const tinted = (c: string, more = 1) => mix(c, tintColor, Math.min(1, tintAmount * more * (0.4 + 0.6 * day)))
+  const top = tinted(mix(mix('#06103a', '#1668cf', day), overcastTone, grey), 0.6)
+  const middle = tinted(mix(mix(mix('#0d2a6c', '#3f93e6', day), '#d88a6a', warmth * 0.35), overcastTone, grey))
+  const bottom = tinted(mix(mix(mix('#2a5ea8', '#a8d2f4', day), '#f0a066', warmth * 0.6), mix(overcastTone, '#ffffff', 0.15), grey), 1.3)
 
   const visible = starsLeft(s)
   const keep = new Set(ORDER.slice(0, visible))
@@ -327,28 +322,11 @@ ${floorRects}
 <text x="75" y="1126" text-anchor="middle" font-family="${SANS}" font-size="14" letter-spacing="3" fill="#ffffff" fill-opacity="0.7">${visible} STARS</text>
 <text x="75" y="1166" text-anchor="middle" font-family="${SANS}" font-size="13" letter-spacing="3" fill="#ffffff" fill-opacity="0.7">${short(s?.window ?? 0)} WINDOW</text>`
 
-  // Rain falls in thin slanted streaks, snow in slow flakes; a storm adds a far-off flash now and then.
-  let seed = 7
-  const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296 }
-  const drops = sky.kind === 'snow'
-    ? Array.from({ length: 110 }, () => `M${Math.round(rnd() * 1000)} ${Math.round(rnd() * 1000)}h0`).join('')
-    : wet
-      ? Array.from({ length: sky.kind === 'drizzle' ? 60 : 110 }, () => {
-        const x0 = Math.round(rnd() * 1060), y0 = Math.round(rnd() * 1000), len = sky.kind === 'drizzle' ? 14 : 26 + Math.round(rnd() * 18)
-        return `M${x0} ${y0}l${-Math.round(len * 0.25)} ${len}`
-      }).join('')
-      : ''
-  const fall = sky.kind === 'snow'
-    ? `<g class="fall slow" stroke="#ffffff" stroke-width="5" stroke-linecap="round" opacity="0.8"><path d="${drops}"/><path d="${drops}" transform="translate(0 -1000)"/></g>`
-    : wet
-      ? `<g class="fall" stroke="#dfe8f5" stroke-width="1.4" stroke-linecap="round" opacity="${sky.kind === 'drizzle' ? 0.35 : 0.5}"><path d="${drops}"/><path d="${drops}" transform="translate(0 -1000)"/></g>`
-      : ''
-  const weatherLayer = (fall ? `<svg x="0" y="0" width="100" height="100" viewBox="0 0 1000 1000" preserveAspectRatio="none">${fall}</svg>` : '')
-    + (sky.kind === 'storm' ? '<rect class="flash" width="100" height="100" fill="#e8eeff" opacity="0"/>' : '')
-    + (sky.kind === 'fog' ? `<rect width="100" height="100" fill="${mix('#3a4150', '#d9dee4', day)}" opacity="0.45"/>` : '')
+  const effects = weatherLayer(cond, k, day, mix('#3a4150', '#d9dee4', day))
+  const hero = character(cond, k, moodFor(s?.percent ?? 0), day)
 
   const time = clockLabel(nowMs, p)
-  const strip = w ? `${Math.round(w.temp)}°C · ${sky.label} · ${season(nowMs, p)}` : season(nowMs, p)
+  const strip = mode === 'live' ? (w ? `${Math.round(w.temp)}°C · ${sky.label} · ${season(nowMs, p)}` : season(nowMs, p)) : `${sky.label} · ${season(nowMs, p)}`
   const night = (1 - day) * 0.6
 
   // The root maps its units to percentages of the backdrop; each nested drawing keeps its own shape.
@@ -357,15 +335,12 @@ ${floorRects}
 .stars circle { fill: #f4f1e8; }
 .halo { animation: breathe 10s ease-in-out infinite alternate; }
 @keyframes breathe { from { opacity: 0.6; } to { opacity: 0.9; } }
-.fall { animation: fall 1.1s linear infinite; }
-.fall.slow { animation-duration: 14s; }
-@keyframes fall { from { transform: translateY(0); } to { transform: translateY(1000px); } }
-.flash { animation: flash 11s linear infinite; }
-@keyframes flash { 0%, 91%, 93.5%, 100% { opacity: 0; } 92% { opacity: 0.35; } 93% { opacity: 0.08; } }
+${WEATHER_CSS}
 
 @keyframes led { from { opacity: 0.85; } to { opacity: 1; } }
 </style>
 <defs>
+${WEATHER_DEFS}
 <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
 <stop offset="0" stop-color="${top}"/><stop offset="0.5" stop-color="${middle}"/><stop offset="1" stop-color="${bottom}"/>
 </linearGradient>
@@ -423,7 +398,8 @@ ${floorRects}
 <rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="url(#cityglow)" opacity="${((1 - day) * 0.55).toFixed(2)}"/>
 </svg>
 <rect x="0" y="0" width="22" height="100" fill="url(#pane)"/>
-${weatherLayer}
+${effects}
+<svg x="0" y="20" width="24" height="79.5" viewBox="225 -130 625 1600" preserveAspectRatio="xMidYMax meet">${hero}</svg>
 <svg x="88.25" y="17" width="9.5" height="82" viewBox="0 0 150 1200" preserveAspectRatio="xMidYMax meet">${gauge}</svg>
 <svg x="86.6" y="3" width="12.8" height="11" viewBox="0 0 300 200" preserveAspectRatio="xMidYMin meet">
 <rect x="0" y="0" width="300" height="200" rx="20" fill="url(#veil)"/>
@@ -520,6 +496,14 @@ async function onType($: EngineInterface, value: string): Promise<void> {
   }
 }
 
+/** Keeps the weather mode for later sessions and redraws the sky with it. */
+async function pickMode($: EngineInterface, mode: Mode): Promise<void> {
+  await $.store.set('mode', mode)
+  await update($, chosenMode, () => mode)
+  await $.ui.close({ id: MODE_PANE })
+  $.ui.toast(`Weather: ${MODES.find(m => m.mode === mode)?.label ?? mode}`)
+}
+
 /** Keeps the city for later sessions, moves the sky there and closes the search. */
 async function choose($: EngineInterface, picked: City): Promise<void> {
   const city = await resolve($, picked).catch(() => null)
@@ -571,6 +555,9 @@ export const register: Register = on => {
     void chosenCity($).then(city => follow($, city))
     $.clock.every(20 * 60_000, () => { void chosenCity($).then(city => follow($, city)) })
 
+    const keptMode = asMode(await $.store.get('mode'))
+    await update($, chosenMode, () => keptMode)
+    await $.command.register({ name: 'weather', description: 'Choose the weather the sky shows: live, hot, cold, rainy, snowy, foggy, cloudy or windy' })
     await $.command.register({ name: 'city', description: 'Search for the city whose time, sun, season and weather the sky follows' })
 
     // Move the clock, the sun and the moon along every half minute.
@@ -623,6 +610,30 @@ export const register: Register = on => {
     )
   })
 
+  on('command.run', { command: 'weather' }, async $ => {
+    await $.ui.open({ id: MODE_PANE, title: 'Choose the weather', focus: true, closeOnEscape: true, holdToasts: true, rows: 12 })
+
+    return { text: 'Pick the weather the sky shows. It grows stronger as the context window fills.' }
+  })
+
+  on('ui.render', { component: 'Pane', requestId: MODE_PANE }, async ($, e) => {
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const current = asMode(await read($, chosenMode))
+
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Text dimColor>The effect grows stronger, and the character sadder, as the context window fills.</Text>
+        <Box flexDirection="column">
+          {MODES.map((m, n) => (
+            <Button key={`mode-${m.mode}`} hotkey={String(n + 1)} onPress={() => { void pickMode($, m.mode) }}>
+              {`${n + 1}  ${m.label}${m.mode === current ? '  ✓' : ''}`}
+            </Button>
+          ))}
+        </Box>
+      </Box>
+    )
+  })
+
   on('session.measure', async ($, e, next) => {
     const measured = toSky(e.context)
     await update($, sky, () => measured)
@@ -641,11 +652,12 @@ export const register: Register = on => {
     const now = (await read($, clock)) ?? (await $.clock.now())
     const p = (await read($, where)) ?? MUMBAI
     const w = await read($, conditions)
+    const mode = asMode(await read($, chosenMode))
     const told = `${clockLabel(now, p)} in ${p.name}${w ? `, ${describe(w.code).label.toLowerCase()} and ${Math.round(w.temp)}°C` : ''}`
     const alt = s && s.used !== null
       ? `A Mumbai skyline seen from an office window, the sky set to ${told}. A gauge on the right reads ${short(s.used)} tokens used and ${short(Math.max(0, s.window - s.used))} left; ${starsLeft(s)} of ${TOTAL_STARS} stars remain.`
       : `A Mumbai skyline seen from an office window, the sky set to ${told}, with a gauge on the right showing the context window.`
 
-    return <Svg source={scene(s, now, p, w)} alt={alt} isInteractive />
+    return <Svg source={scene(s, now, p, w, mode)} alt={alt} isInteractive />
   })
 }

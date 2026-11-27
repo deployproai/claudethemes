@@ -1,6 +1,6 @@
 {
   "name": "day-at-office",
-  "version": "0.12.0",
-  "description": "The view of Mumbai from a high office window, traced from a photograph, under the live sky of a city you search for with /city: real sunrise and sunset, current weather and season, and a gauge on the right showing context and tokens used.",
+  "version": "0.13.0",
+  "description": "The view of Mumbai from a high office window, with a character at the window and a sky that follows a city you search for with /city or a weather you pick with /weather. The weather grows stronger and the character sadder as the context window fills; a gauge on the right shows context and tokens used.",
   "types": "./types/index.d.ts"
 }

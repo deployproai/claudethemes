@@ -15,6 +15,6 @@ export type Search = { query: string; results: City[]; note: string }
 
 declare module 'claude-code' {
   interface PluginState {
-    'day-at-office': { sky: Sky | null; now: number | null; place: Place | null; weather: Weather | null; search: Search }
+    'day-at-office': { sky: Sky | null; now: number | null; place: Place | null; weather: Weather | null; search: Search; mode: string }
   }
 }
