@@ -79,13 +79,17 @@ export const WEATHER_CSS = `
 @keyframes flash { 0%, 91%, 93.5%, 100% { opacity: 0; } 92% { opacity: 0.35; } 93% { opacity: 0.08; } }
 .gust { animation: gust var(--gust, 3s) linear infinite; }
 @keyframes gust { from { transform: translateX(-1100px); } to { transform: translateX(1100px); } }
+.drift { animation: drift var(--drift, 60s) linear infinite alternate; }
+@keyframes drift { from { transform: translateX(-160px); } to { transform: translateX(160px); } }
+.splash { transform-box: fill-box; transform-origin: center; animation: splash 1.4s ease-out infinite; }
+@keyframes splash { 0% { transform: scale(0.2); opacity: 0.9; } 100% { transform: scale(1.8); opacity: 0; } }
 .shimmer { animation: shimmer 4s ease-in-out infinite; }
 @keyframes shimmer { 0% { transform: translateY(0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-120px); opacity: 0; } }
 .sway { transform-box: view-box; transform-origin: 490px 1460px; animation: sway var(--sway-t, 3s) ease-in-out infinite alternate; }
 @keyframes sway { from { transform: rotate(calc(var(--sway, 1deg) * -0.4)) skewX(calc(var(--skew, 0deg) * -0.3)); } to { transform: rotate(var(--sway, 1deg)) skewX(var(--skew, 0deg)); } }
 .shiver { animation: shiver 0.12s linear infinite alternate; }
 @keyframes shiver { from { transform: translateX(calc(var(--shiver, 0px) * -1)); } to { transform: translateX(var(--shiver, 0px)); } }
-.brolly { transform-box: view-box; transform-origin: 688px 800px; animation: brolly var(--brolly-t, 2.6s) ease-in-out infinite alternate; }
+.brolly { transform-box: view-box; transform-origin: 706px 770px; animation: brolly var(--brolly-t, 2.6s) ease-in-out infinite alternate; }
 @keyframes brolly { from { transform: rotate(calc(var(--brolly, 2deg) * -1)); } to { transform: rotate(var(--brolly, 2deg)); } }
 .lid { transform-box: fill-box; transform-origin: center top; animation: blink 6s infinite; }
 @keyframes blink { 0%, 94%, 100% { transform: scaleY(0); } 96.5% { transform: scaleY(1); } }
@@ -114,6 +118,8 @@ export function weatherLayer(c: Conditions, k: number, day: number, fogTone: str
       const len = c.kind === 'drizzle' ? 14 : n0(24 + rnd() * 20 + 14 * k)
       return `M${n0(rnd() * 1300)} ${n0(rnd() * 1000)}l${-n0(len * slant)} ${len}`
     }).join('')
+    const splashes = Array.from({ length: n0(6 + 18 * k) }, () => `<ellipse class="splash" style="animation-delay:-${(rnd() * 1.4).toFixed(2)}s" cx="${n0(rnd() * 1000)}" cy="${n0(880 + rnd() * 110)}" rx="9" ry="2.5" fill="none" stroke="#e8f1fb" stroke-width="1.6"/>`).join('')
+    parts.push(`<rect y="860" width="1000" height="140" fill="url(#wet)" opacity="${(0.25 + 0.45 * k).toFixed(2)}"/>${splashes}`)
     parts.push(`<g class="fall" style="--fall:${(1.3 - 0.6 * k).toFixed(2)}s" stroke="#dfe8f5" stroke-width="${(1.1 + 0.8 * k).toFixed(1)}" stroke-linecap="round" opacity="${(0.3 + 0.35 * k).toFixed(2)}"><path d="${d}"/><path d="${d}" transform="translate(0 -1000)"/></g>`)
   }
   if (c.kind === 'snow') {
@@ -127,8 +133,10 @@ export function weatherLayer(c: Conditions, k: number, day: number, fogTone: str
     parts.push(leaves)
   }
   if (c.kind === 'fog') {
-    parts.push(`<rect width="1000" height="1000" fill="${fogTone}" opacity="${(0.15 + 0.5 * k).toFixed(2)}"/>`)
-    parts.push(Array.from({ length: 4 }, (_, i) => `<ellipse class="gust" style="--gust:${40 + i * 9}s;animation-delay:-${i * 11}s" cx="500" cy="${560 + i * 110}" rx="700" ry="70" fill="${fogTone}" opacity="${(0.2 + 0.3 * k).toFixed(2)}"/>`).join(''))
+    // Thicker toward the ground, thinning into the sky, with soft banks drifting through.
+    parts.push(`<linearGradient id="fogfade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${fogTone}" stop-opacity="${(0.1 + 0.3 * k).toFixed(2)}"/><stop offset="0.45" stop-color="${fogTone}" stop-opacity="${(0.25 + 0.45 * k).toFixed(2)}"/><stop offset="1" stop-color="${fogTone}" stop-opacity="${(0.45 + 0.45 * k).toFixed(2)}"/></linearGradient><radialGradient id="fogbank"><stop offset="0" stop-color="${fogTone}" stop-opacity="0.85"/><stop offset="1" stop-color="${fogTone}" stop-opacity="0"/></radialGradient>`)
+    parts.push(`<rect width="1000" height="1000" fill="url(#fogfade)"/>`)
+    parts.push(Array.from({ length: n0(3 + 4 * k) }, (_, i) => `<ellipse class="drift" style="--drift:${60 + i * 13}s;animation-delay:-${i * 17}s" cx="${n0(rnd() * 1000)}" cy="${n0(420 + rnd() * 480)}" rx="${n0(260 + rnd() * 220)}" ry="${n0(45 + rnd() * 50)}" fill="url(#fogbank)" opacity="${(0.4 + 0.5 * k).toFixed(2)}"/>`).join(''))
   }
   if (c.kind === 'hot') {
     const d = Array.from({ length: n0(6 + 16 * k) }, () => { const x = n0(rnd() * 1000), y = n0(700 + rnd() * 250); return `M${x} ${y}c6-10-6-20 0-30s-6-20 0-30` }).join('')
@@ -144,6 +152,7 @@ export function weatherLayer(c: Conditions, k: number, day: number, fogTone: str
 }
 
 export const WEATHER_DEFS = `<radialGradient id="heat" cx="0.5" cy="1" r="0.9"><stop offset="0" stop-color="#ff9a3d" stop-opacity="0.55"/><stop offset="1" stop-color="#ff9a3d" stop-opacity="0"/></radialGradient>
+<linearGradient id="wet" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9c7d6" stop-opacity="0"/><stop offset="1" stop-color="#d9e4ef" stop-opacity="0.6"/></linearGradient>
 <radialGradient id="frost" cx="0.5" cy="0.5" r="0.75"><stop offset="0.6" stop-color="#eaf6ff" stop-opacity="0"/><stop offset="1" stop-color="#eaf6ff" stop-opacity="0.95"/></radialGradient>`
 
 /**
@@ -162,7 +171,7 @@ export function character(c: Conditions, k: number, level: number, day: number):
   const eye = (x: number) => `<ellipse cx="${x}" cy="134" rx="10" ry="${eyeRy.toFixed(1)}" fill="#fffaf4"/><circle cx="${x}" cy="${(134 + look).toFixed(1)}" r="5.2" fill="#3a2215"/><circle cx="${x}" cy="${(134 + look).toFixed(1)}" r="2.6" fill="#0d0705"/><circle cx="${x + 2}" cy="${(132 + look).toFixed(1)}" r="1.4" fill="#ffffff"/>`
   const lids = `<ellipse class="lid" cx="458" cy="128" rx="11" ry="12" fill="${o.skin}"/><ellipse class="lid" cx="517" cy="128" rx="11" ry="12" fill="${o.skin}"/>`
   const mouths = [
-    `<path d="M461 181Q492 212 523 181Q492 193 461 181Z" fill="#7a2c26"/><path d="M468 184Q492 192 516 184l-2 4Q492 194 470 188Z" fill="#ffffff"/>`,
+    `<path d="M463 182Q492 189 521 182Q511 206 492 207Q473 206 463 182Z" fill="#5e1f1c"/><path d="M468 184Q492 190 516 184Q514 189 510 190Q492 193 474 190Q470 189 468 184Z" fill="#f4ece4"/><path d="M478 200Q492 195 506 200Q499 205 492 205Q485 205 478 200Z" fill="#c4544c"/><path d="M461 181Q492 190 523 181" fill="none" stroke="#6b2f25" stroke-width="3" stroke-linecap="round"/><path d="M466 194Q492 214 518 194" fill="none" stroke="#a85a40" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>`,
     `<path d="M464 185Q492 203 520 185" fill="none" stroke="#6b2f25" stroke-width="4.5" stroke-linecap="round"/>`,
     `<path d="M468 192Q492 196 516 192" fill="none" stroke="#6b2f25" stroke-width="4.5" stroke-linecap="round"/>`,
     `<path d="M468 196Q492 188 516 196" fill="none" stroke="#6b2f25" stroke-width="4.5" stroke-linecap="round"/>`,
@@ -173,10 +182,10 @@ export function character(c: Conditions, k: number, level: number, day: number):
     + (level >= 5 ? `<path class="tear" d="M452 142q-4 8 0 11q4-3 0-11z" fill="#9fd4ff"/><path class="tear" style="animation-delay:-1.2s" d="M523 142q-4 8 0 11q4-3 0-11z" fill="#9fd4ff"/>` : '')
     + (c.kind === 'hot' && k > 0.35 ? `<ellipse cx="452" cy="160" rx="13" ry="7" fill="#e8573a" opacity="${(0.25 * k).toFixed(2)}"/><ellipse cx="530" cy="160" rx="13" ry="7" fill="#e8573a" opacity="${(0.25 * k).toFixed(2)}"/><path class="sweat" d="M470 98q-5 9 0 12q5-3 0-12z" fill="#bfe6ff"/>` + (k > 0.6 ? `<path class="sweat" style="animation-delay:-1.4s" d="M540 112q-5 9 0 12q5-3 0-12z" fill="#bfe6ff"/>` : '') : '')
     + ((c.kind === 'cold' || c.kind === 'snow') && k > 0.3 ? `<ellipse class="breath" cx="535" cy="198" rx="22" ry="12" fill="#ffffff"/>` : '')
-  const body = `<g transform="translate(225 15) scale(${(520 / o.w).toFixed(3)})">${o.body}</g><g transform="translate(395 15) scale(${(205 / o.hw).toFixed(3)})">${o.head}</g>${face}`
+  const body = `<g transform="translate(225 15) scale(${(520 / o.w).toFixed(3)})">${o.body}</g><g transform="translate(395 15) scale(${(205 / o.hw).toFixed(3)})">${o.head}</g><g transform="translate(280 1360) scale(${(440 / o.fw).toFixed(3)})">${o.feet}</g>${face}`
   // Open umbrella in the rain, held in the right hand and tipped by the wind.
   const umbrella = wet
-    ? `<g class="brolly" style="--brolly:${(2 + 9 * k).toFixed(1)}deg;--brolly-t:${(2.8 - 1.4 * k).toFixed(2)}s"><path d="M688 800L612 -40" stroke="#2a2a2a" stroke-width="9" stroke-linecap="round"/><path d="M688 800q14 30-8 40" fill="none" stroke="#2a2a2a" stroke-width="10" stroke-linecap="round"/>
+    ? `<g class="brolly" style="--brolly:${(2 + 9 * k).toFixed(1)}deg;--brolly-t:${(2.8 - 1.4 * k).toFixed(2)}s"><path d="M704 752L612 -40" stroke="#2a2a2a" stroke-width="9" stroke-linecap="round"/>
 <path d="M380 70Q392 -100 612 -112Q832 -100 844 70Q789 46 734 70Q679 46 612 70Q545 46 490 70Q435 46 380 70Z" fill="#174a4d"/><path d="M612 -112Q560 -10 490 70M612 -112Q664 -10 734 70M612 -112V70" fill="none" stroke="#0f3537" stroke-width="5"/><path d="M420 30Q470 -80 612 -100" fill="none" stroke="#ffffff" stroke-width="6" opacity="0.18"/></g>`
     : ''
   const sway = windy ? 0.6 + 2.6 * k : wet ? 0.4 + 1.2 * k : 0.3

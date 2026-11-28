@@ -5,7 +5,7 @@ import { makeColors } from './make-colors.js'
 import { matchCountries } from './countries'
 import { MODES, WEATHER_CSS, WEATHER_DEFS, character, conditionsFor, describe, moodFor, weatherLayer } from './weather'
 import type { Mode } from './weather'
-import { PHOTO_HEIGHT, PHOTO_PATHS, PHOTO_WIDTH } from './photo'
+import { MUMBAI_VIEW, sceneFor } from './cities'
 import type { City, Place, Search, Sky, Weather } from '../types'
 
 // An office-window sky that follows the time of day in India (IST). By night the
@@ -211,16 +211,29 @@ const starsLeft = (s: Sky | null) => Math.round(TOTAL_STARS * (1 - (s?.percent ?
  * It comes up from behind the buildings on the left, climbs high over the city and goes down
  * behind them again just short of the glass tower. Outside 0 to 1 it is below the skyline.
  */
-function arc(t: number): { x: number; y: number } {
+function arc(t: number, base = 50): { x: number; y: number } {
   // Climbs quickly off the horizon, so it is seen clearing the rooftops rather than hidden for an hour.
   const sin = Math.sin(Math.PI * t)
   const lift = Math.sign(sin) * Math.abs(sin) ** 0.6
-  return { x: 8 + 72 * t, y: 50 - 36 * lift }
+  return { x: 8 + 72 * t, y: base - (base - 14) * lift }
 }
 
 export function scene(s: Sky | null, nowMs: number, p: Place = MUMBAI, w: Weather | null = null, mode: Mode = 'live'): string {
   const minutes = localMinutes(nowMs, p)
   const { rise, set } = sunTimes(nowMs, p)
+  // The view out of the window: the chosen city's, where the theme has one, else Mumbai's.
+  const view = sceneFor(p.name) ?? MUMBAI_VIEW
+  const VW = view.width, VH = view.height
+  // Where the skyline falls on a typical 16:10 window, so the sun and moon rise from behind it.
+  const aspect = 1.6, tall = (VH / VW) * aspect
+  const arcBase = view.arcBase ?? Math.max(40, Math.min(70, (view.horizon * tall - (tall - 1)) * 100 + 4))
+  const towerShape = view.towerPath ?? `M${view.tower} 0H${VW}V${VH}H${view.tower}Z`
+  const hz = view.horizon
+  // Mumbai's photo keeps the fit it always had; the other cities are drawn to the full width of a
+  // 16:10 window, bottom-aligned, so the glass tower on the right is never cropped away.
+  const fitted = view.arcBase === undefined
+  const viewTall = 100 * tall
+  const viewFrame = fitted ? `x="0" y="${(100 - viewTall).toFixed(2)}" width="100" height="${viewTall.toFixed(2)}"` : 'x="0" y="0" width="100" height="100"'
   // The weather grows stronger as the context window fills: k runs from 0.2 (empty) to 1 (full).
   const k = 0.2 + 0.8 * ((s?.percent ?? 0) / 100)
   const cond = conditionsFor(mode, w, k)
@@ -280,23 +293,23 @@ ${sea(-34, -52, 46, 34, 0.75)}${sea(22, -66, 34, 24, 0.6)}${sea(38, -22, 40, 30,
 
   // Drawn before the city, so the buildings hide the sun and moon as they rise and set.
   const place = (t: number, art: string) => {
-    const { x, y } = arc(t)
+    const { x, y } = arc(t, arcBase)
     return `<svg x="${(x - 11.25).toFixed(2)}" y="${(y - 18).toFixed(2)}" width="22.5" height="36" viewBox="-300 -300 600 600" preserveAspectRatio="none">${art}</svg>`
   }
 
   // Clouds: heaps of soft puffs. The low ones stay through the night, lit blue by the moon; the high ones come with the day.
   const puffs: [number, number, number, number][] = [[-0.38, 0.08, 0.3, 0.19], [-0.16, -0.08, 0.33, 0.25], [0.1, -0.13, 0.36, 0.28], [0.36, 0.05, 0.3, 0.2], [0, 0.13, 0.52, 0.16]]
   const cloud = (cx: number, cy: number, w: number, o: number) => `<g opacity="${o.toFixed(2)}"><ellipse cx="${cx}" cy="${cy + w * 0.2}" rx="${w * 0.5}" ry="${w * 0.1}" fill="url(#shade)"/>${puffs.map(([dx, dy, rx, ry]) =>
-    `<ellipse cx="${(cx + dx * w).toFixed(0)}" cy="${(cy + dy * w).toFixed(0)}" rx="${(rx * w).toFixed(0)}" ry="${(ry * w).toFixed(0)}" fill="url(#puff)"/>`).join('')}</g>`
+    `<ellipse cx="${(cx + dx * w).toFixed(0)}" cy="${(cy + dy * w).toFixed(0)}" rx="${(rx * w).toFixed(0)}" ry="${(ry * w).toFixed(0)}" fill="url(#puff)"/>`).join('')}<ellipse cx="${cx}" cy="${(cy + w * 0.11).toFixed(0)}" rx="${(w * 0.5).toFixed(0)}" ry="${(w * 0.11).toFixed(0)}" fill="url(#under)" opacity="${Math.min(1, 0.25 + grey).toFixed(2)}"/></g>`
   // More cloud the more the sky is covered: a low bank always, a high layer from a quarter cover,
   // and under overcast or rain a heavy deck across the whole sky.
-  const low = 0.7 + day * 0.25
+  const low = (0.45 + 0.55 * Math.min(1, cover / 60)) * (0.7 + day * 0.25)
   const high = Math.max(day, 0.55) * Math.min(1, cover / 30)
-  const deck = cover >= 85 || wet || sky.kind === 'overcast'
+  const deck = cover >= 85 || wet
     ? [[160, 80, 420], [560, 40, 480], [980, 90, 440], [1400, 50, 460], [360, 230, 400], [800, 200, 460], [1250, 220, 420]].map(([cx, cy, sz]) => cloud(cx ?? 0, cy ?? 0, sz ?? 0, 0.95)).join('')
     : ''
   const clouds = cloud(250, 520, 330, low) + cloud(640, 560, 420, low) + cloud(1050, 530, 360, low) + cloud(1420, 560, 380, low) + cloud(860, 585, 300, low)
-    + deck + (cover >= 25 ? cloud(520, 330, 230, high) + cloud(1180, 250, 260, high) + cloud(1480, 120, 200, high) + cloud(820, 110, 170, high) + cloud(90, 300, 200, high) : '')
+    + deck + (cover >= 50 ? cloud(300, 420, 300, high) + cloud(1000, 400, 340, high) + cloud(1350, 300, 260, high) : '') + (cover >= 25 ? cloud(520, 330, 230, high) + cloud(1180, 250, 260, high) + cloud(1480, 120, 200, high) + cloud(820, 110, 170, high) + cloud(90, 300, 200, high) : '')
   const puffTone = mix(mix('#a9c8ee', '#ffffff', day), mix('#2c323d', wet ? '#8a939f' : '#b3bac4', day), grey * 0.9)
   const shadeTone = mix(mix('#3a5f9c', '#9fb8d4', day), mix('#20252f', '#6b7480', day), grey * 0.9)
 
@@ -347,14 +360,15 @@ ${WEATHER_DEFS}
 <linearGradient id="pane" x1="0" y1="0" x2="1" y2="0">
 <stop offset="0" stop-color="#173c44" stop-opacity="${(0.25 + day * 0.4).toFixed(2)}"/><stop offset="1" stop-color="#173c44" stop-opacity="0"/>
 </linearGradient>
+${view.skyline ? `<clipPath id="cityclip"><path d="${view.skyline}"/></clipPath><linearGradient id="cityhaze" x1="0" y1="0" x2="0" y2="1"><stop offset="${(hz - 0.04).toFixed(3)}" stop-color="${mix('#3a4660', '#dce8f5', day)}" stop-opacity="0.32"/><stop offset="${(hz + 0.14).toFixed(3)}" stop-color="${mix('#3a4660', '#dce8f5', day)}" stop-opacity="0"/></linearGradient>` : ''}
 <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0.3" stop-color="#0a0f26" stop-opacity="0"/><stop offset="0.43" stop-color="#0a0f26" stop-opacity="1"/>
+<stop offset="${(hz - 0.06).toFixed(3)}" stop-color="#0a0f26" stop-opacity="0"/><stop offset="${(hz + 0.07).toFixed(3)}" stop-color="#0a0f26" stop-opacity="1"/>
 </linearGradient>
 <radialGradient id="veil" cx="0.5" cy="0.5" r="0.75">
 <stop offset="0" stop-color="#060a18" stop-opacity="0.5"/><stop offset="1" stop-color="#060a18" stop-opacity="0.28"/>
 </radialGradient>
 <linearGradient id="cityglow" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0.3" stop-color="#ff9e4a" stop-opacity="0"/><stop offset="0.5" stop-color="#ff9e4a" stop-opacity="0.35"/><stop offset="1" stop-color="#ffb870" stop-opacity="0.15"/>
+<stop offset="${(hz - 0.06).toFixed(3)}" stop-color="#ff9e4a" stop-opacity="0"/><stop offset="${(hz + 0.14).toFixed(3)}" stop-color="#ff9e4a" stop-opacity="0.35"/><stop offset="1" stop-color="#ffb870" stop-opacity="0.15"/>
 </linearGradient>
 <radialGradient id="glare" cx="0.5" cy="0.5" r="0.5">
 <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="0.22" stop-color="#eaf5ff" stop-opacity="0.55"/><stop offset="0.6" stop-color="#cfe6ff" stop-opacity="0.16"/><stop offset="1" stop-color="#cfe6ff" stop-opacity="0"/>
@@ -383,23 +397,24 @@ ${WEATHER_DEFS}
 <radialGradient id="puff" cx="0.5" cy="0.4" r="0.5">
 <stop offset="0" stop-color="${puffTone}" stop-opacity="1"/><stop offset="0.6" stop-color="${puffTone}" stop-opacity="0.85"/><stop offset="1" stop-color="${puffTone}" stop-opacity="0"/>
 </radialGradient>
+<linearGradient id="under" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${shadeTone}" stop-opacity="0"/><stop offset="1" stop-color="${shadeTone}" stop-opacity="0.75"/></linearGradient>
 <radialGradient id="shade" cx="0.5" cy="0.5" r="0.5">
 <stop offset="0" stop-color="${shadeTone}" stop-opacity="0.6"/><stop offset="1" stop-color="${shadeTone}" stop-opacity="0"/>
 </radialGradient>
 </defs>
 <rect width="100" height="100" fill="url(#sky)"/>
 <svg x="0" y="0" width="84" height="38" viewBox="0 0 1400 600" preserveAspectRatio="xMidYMid slice"><g class="stars" opacity="${(1 - day).toFixed(2)}">${lit}</g></svg>
-<svg x="0" y="0" width="100" height="62" viewBox="0 0 1600 640" preserveAspectRatio="xMidYMax slice">${clouds}</svg>
+<svg x="0" y="0" width="100" height="62" viewBox="0 0 1600 640" preserveAspectRatio="xMidYMax slice"><g class="drift" style="--drift:${cover >= 85 ? 90 : 140}s">${clouds}</g></svg>
 <g opacity="${veiled.toFixed(2)}">${showMoon ? place(tMoon, moonBody) : ''}${showSun ? place(tSun, sunBody) : ''}</g>
-<svg x="0" y="0" width="100" height="100" viewBox="0 0 ${PHOTO_WIDTH} ${PHOTO_HEIGHT}" preserveAspectRatio="xMidYMax slice">${PHOTO_PATHS}
-<rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="url(#dark)" opacity="${night.toFixed(2)}"/><path d="M477 0H560V504H486Z" fill="#0a0f26" opacity="${night.toFixed(2)}"/>
-<rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="#f09a5c" opacity="${(warmth * 0.16).toFixed(2)}"/>
-<rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="${mix('#1c2029', '#7d8590', day)}" opacity="${(Math.max(0, grey - 0.4) * 0.6).toFixed(2)}"/>
-<rect width="${PHOTO_WIDTH}" height="${PHOTO_HEIGHT}" fill="url(#cityglow)" opacity="${((1 - day) * 0.55).toFixed(2)}"/>
+<svg ${viewFrame} viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="${fitted ? 'none' : 'xMidYMax slice'}">${view.paths}${view.skyline ? `<rect width="${view.tower}" height="${VH}" fill="url(#cityhaze)" clip-path="url(#cityclip)"/>` : ''}${view.landmarks}
+<rect width="${VW}" height="${VH}" fill="url(#dark)" opacity="${night.toFixed(2)}"/><path d="${towerShape}" fill="#0a0f26" opacity="${night.toFixed(2)}"/>
+<rect width="${VW}" height="${VH}" fill="#f09a5c" opacity="${(warmth * 0.16).toFixed(2)}"/>
+<rect width="${VW}" height="${VH}" fill="${mix('#1c2029', '#7d8590', day)}" opacity="${(Math.max(0, grey - 0.4) * 0.6).toFixed(2)}"/>
+<rect width="${VW}" height="${VH}" fill="url(#cityglow)" opacity="${((1 - day) * 0.55).toFixed(2)}"/>
 </svg>
 <rect x="0" y="0" width="22" height="100" fill="url(#pane)"/>
 ${effects}
-<svg x="0" y="20" width="24" height="79.5" viewBox="225 -130 625 1600" preserveAspectRatio="xMidYMax meet">${hero}</svg>
+<svg x="0" y="20" width="24" height="79.5" viewBox="225 -130 625 1615" preserveAspectRatio="xMidYMax meet">${hero}</svg>
 <svg x="88.25" y="17" width="9.5" height="82" viewBox="0 0 150 1200" preserveAspectRatio="xMidYMax meet">${gauge}</svg>
 <svg x="86.6" y="3" width="12.8" height="11" viewBox="0 0 300 200" preserveAspectRatio="xMidYMin meet">
 <rect x="0" y="0" width="300" height="200" rx="20" fill="url(#veil)"/>
@@ -444,7 +459,7 @@ async function searchCities($: EngineInterface, query: string): Promise<City[]> 
   const found = ((JSON.parse(r.text) as { results?: Found[] }).results ?? []).sort((a, b) => (b.population ?? 0) - (a.population ?? 0))
   const cities = found.map(c => ({
     name: c.name,
-    label: [c.name, c.admin1 && c.admin1 !== c.name ? c.admin1 : '', c.country ?? ''].filter(Boolean).join(', '),
+    label: [c.name, c.admin1 && c.admin1 !== c.name ? c.admin1 : '', c.country ?? ''].filter(Boolean).join(', ') + (sceneFor(c.name) ? '  · city view' : ''),
     lat: c.latitude,
     lon: c.longitude,
   }))

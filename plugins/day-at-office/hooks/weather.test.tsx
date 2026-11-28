@@ -23,7 +23,7 @@ test('the weather pane lists every mode and keeps the one picked', async ($, on)
   await ui.unmount()
 })
 
-test('rain gets heavier and the face sadder as the context fills; every scene fits the backdrop', () => {
+test('rain gets heavier and the face sadder as the context fills; every city in every weather fits the backdrop', () => {
   const mumbai = { name: 'Mumbai', lat: 19.076, lon: 72.8777, offsetSec: 19800, tz: 'IST' }
   const at = Date.UTC(2026, 10, 27, 6)
   const empty = scene({ used: 50_000, window: 1_000_000, percent: 5 }, at, mumbai, null, 'rain')
@@ -32,9 +32,28 @@ test('rain gets heavier and the face sadder as the context fills; every scene fi
   expect(drops(full)).toBeGreaterThan(drops(empty) * 2)
   expect(empty).not.toContain('class="tear"')
   expect(full).toContain('class="tear"')
-  for (const mode of ['live', 'hot', 'cold', 'rain', 'snow', 'fog', 'cloudy', 'windy'] as const) {
-    for (const percent of [0, 100]) {
-      expect(scene({ used: percent * 10_000, window: 1_000_000, percent }, at, mumbai, { code: 95, temp: 20, cloud: 100, at: 0 }, mode).length).toBeLessThan(131_072)
+  const cities = ['Mumbai', 'Delhi', 'Bengaluru', 'London', 'Paris', 'New York', 'Dubai', 'Singapore', 'Tokyo', 'Sydney', 'Reykjavik']
+  for (const name of cities) {
+    for (const mode of ['live', 'hot', 'cold', 'rain', 'snow', 'fog', 'cloudy', 'windy'] as const) {
+      for (const percent of [0, 100]) {
+        for (const code of [0, 75, 95]) {
+          const svg = scene({ used: percent * 10_000, window: 1_000_000, percent }, at, { ...mumbai, name }, { code, temp: 20, cloud: 100, at: 0 }, mode)
+          expect(svg.length).toBeLessThan(131_072)
+        }
+      }
     }
   }
+})
+
+test('each featured city draws its own view; any other city falls back to Mumbai', () => {
+  const at = Date.UTC(2026, 10, 27, 6)
+  const place = (name: string) => ({ name, lat: 19.076, lon: 72.8777, offsetSec: 19800, tz: 'IST' })
+  const mumbai = scene(null, at, place('Mumbai'))
+  const london = scene(null, at, place('London'))
+  const elsewhere = scene(null, at, place('Reykjavik'))
+  expect(london).not.toBe(mumbai)
+  expect(london).toContain('cityclip')
+  expect(mumbai).toContain('M477 0H560V504H486Z')
+  expect(elsewhere).toContain('M477 0H560V504H486Z')
+  expect(elsewhere).not.toContain('cityclip')
 })

@@ -1,6 +1,6 @@
 {
   "name": "day-at-office",
-  "version": "0.13.0",
-  "description": "The view of Mumbai from a high office window, with a character at the window and a sky that follows a city you search for with /city or a weather you pick with /weather. The weather grows stronger and the character sadder as the context window fills; a gauge on the right shows context and tokens used.",
+  "version": "0.14.0",
+  "description": "A view from a high office window over the city you search for with /city (Mumbai, Delhi, Bengaluru, London, Paris, New York, Dubai, Singapore, Tokyo or Sydney), with a character at the window and a weather you pick with /weather. The weather grows stronger and the character sadder as the context window fills; a gauge on the right shows context and tokens used.",
   "types": "./types/index.d.ts"
 }
